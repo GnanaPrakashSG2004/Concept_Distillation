@@ -474,8 +474,8 @@ def visualize_concept_differences(args, plot_params, show=True, save=False, sim_
 
 def main():
     parser = build_model_comparison_parser()
-    parser.add_argument('--visualization_output_root', type=str, default='./')
-    parser.add_argument('--importance_output_root', type=str, default='./')
+    parser.add_argument('--visualization_output_root', type=str, default='/scratch/swayam/rsvc-exps')
+    parser.add_argument('--importance_output_root', type=str, default='/scratch/swayam/rsvc-exps')
     parser.add_argument('--eval_dataset', type=str, default='imagenet')
     parser.add_argument('--data_split', type=str, default='val')
     parser.add_argument('--patchify', action='store_true')

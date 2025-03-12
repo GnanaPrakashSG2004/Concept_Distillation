@@ -93,7 +93,7 @@ def build_output_dir(args, config, save_names1, save_names2, data_group_name=Non
 def main():
     parser = concept_comparison_parser()
     parser.add_argument('--steps', type=int, default=30)
-    parser.add_argument('--importance_output_root', type=str, default='./')
+    parser.add_argument('--importance_output_root', type=str, default='/scratch/swayam/rsvc-exps/')
     parser.add_argument('--patchify', action='store_true')
     parser.add_argument('--comparison_config', type=str, default=None)
 
@@ -144,7 +144,7 @@ def main():
     if dataset_name == 'nabirds_modified' or dataset_name == 'nabirds_stanford_cars':
         data_root = f'./data/nabirds/'
     else:
-        data_root = f'./data/{dataset_name}/'
+        data_root = f'/scratch/swayam/imagenet_data/{dataset_name}/'
         
     class_list = param_dicts1['class_list']
     pbar = tqdm(class_list)

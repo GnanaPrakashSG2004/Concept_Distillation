@@ -438,7 +438,7 @@ def main():
             image_list = image_group[class_idx] * 4
 
             out = ceh.select_class_and_load_images_v2(image_path_list=image_list,
-                                                      data_root=f'./data/{dataset}/',
+                                                      data_root=f'/scratch/swayam/imagenet_data/{dataset}/',
                                                       # transform=model_out['test_transform'])
                                                       transform=model_out['transform'])
             print(out['num_images'])
@@ -448,7 +448,7 @@ def main():
             image_samples = unnormalize(images_preprocessed)
         else:
             out = ceh.select_class_and_load_images_v2(image_path_list=image_group[class_idx],
-                                                   data_root=f'./data/{data_root_name}/',
+                                                   data_root=f'/scratch/swayam/imagenet_data/{data_root_name}/',
                                                    transform=unnormalized_test_transform)
             image_size = out['image_size']
             patch_size = param_dicts['feature_extraction_params']['patch_size']

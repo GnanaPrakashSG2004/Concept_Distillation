@@ -3,15 +3,18 @@ import os
 import numpy as np
 import timm
 import torch
-from datasets.imagenet import imagenet, imagenet_modified
-from datasets.nabirds import NABirds
+import sys
 from timm.data import resolve_data_config
 from timm.data.transforms_factory import create_transform
 import tqdm
 import matplotlib.pyplot as plt
 import json
-from src.utils.model_loader import load_model
+
+sys.path.append('../')
+from datasets.imagenet import imagenet, imagenet_modified
+from datasets.nabirds import NABirds
 from datasets.utils.dataset_loader import get_dataset
+from src.utils.model_loader import load_model
 
 def load_or_run_evaluation(eval_path, dataset, split, model_name, ckpt_path, data_root='./data'):
     try:
@@ -168,7 +171,7 @@ def main(model_name, dataset_name, split='val', ckpt_path=None, model_type=None,
         torch.save(probs, f)
 
     stats = compute_stats(model_name, out)
-    with open(f'./{save_root}/{dataset_name}/{model_name}_stats_{split}.json', 'w') as f:
+    with open(f'{save_root}/{dataset_name}/{model_name}_stats_{split}.json', 'w') as f:
         json.dump(stats, f)
 
     return out
@@ -185,25 +188,35 @@ def compute_stats_main(model_name, dataset_name, split='val', ckpt_path=None, mo
 
 
 if __name__ == '__main__':
+
+    model_name = 'resnet50.a3_in1k'
+    main(
+        model_name=model_name,
+        dataset_name='imagenet',
+        split='val',
+        ckpt_path=None,
+        save_root="/scratch/swayam/rsvc-exps/model_evaluation",
+        data_root="/scratch/swayam/imagenet_data"
+    )
     # for model_name in ['resnet18.a2_in1k', 'resnet50.a2_in1k',
     #                    'vit_small_patch16_224.augreg_in21k_ft_in1k',
     #                    'vit_large_patch16_224.augreg_in21k_ft_in1k']:
     #     compute_stats_main(model_name, dataset_name='imagenet', split='val', save_root='../model_evaluation')
-    model_names = [
-        # 'nabirds_dino_a3_seed=4834586', 'nabirds_mae_a3_seed=4834586',
-        # "nabirds_dino_a3_seed=87363356", "nabirds_mae_a3_seed=87363356",
-        # "nabirds_exc_rwb_r18_fs_a3_seed=4834586_retrained_head",
-        # "nabirds_exc_rwbamv0_r18_fs_a3_seed=4834586_retrained_head",
-        "nabirds_r18_fs_a3_seed=4834586",
-        "nabirds_r18_pt_a3_seed=4834586",
-        "nabirds_r18_fs_a3_seed=87363356",
-        "nabirds_exc_bop_v0_r18_fs_seed=4834586_rh",
-        "nabirds_exc_bop_v0_r18_pt_seed=4834586_rh",
-        "nabirds_exc_wb_v0_r18_fs_seed=4834586_rh",
-        "nabirds_exc_wb_v0_r18_pt_seed=4834586_rh",
-    ]
-    for model_name in model_names:
-        main(model_name, dataset_name='nabirds', split='test', ckpt_path=f'./checkpoints/{model_name}/last.ckpt', data_root='./data')
+    # model_names = [
+    #     # 'nabirds_dino_a3_seed=4834586', 'nabirds_mae_a3_seed=4834586',
+    #     # "nabirds_dino_a3_seed=87363356", "nabirds_mae_a3_seed=87363356",
+    #     # "nabirds_exc_rwb_r18_fs_a3_seed=4834586_retrained_head",
+    #     # "nabirds_exc_rwbamv0_r18_fs_a3_seed=4834586_retrained_head",
+    #     "nabirds_r18_fs_a3_seed=4834586",
+    #     "nabirds_r18_pt_a3_seed=4834586",
+    #     "nabirds_r18_fs_a3_seed=87363356",
+    #     "nabirds_exc_bop_v0_r18_fs_seed=4834586_rh",
+    #     "nabirds_exc_bop_v0_r18_pt_seed=4834586_rh",
+    #     "nabirds_exc_wb_v0_r18_fs_seed=4834586_rh",
+    #     "nabirds_exc_wb_v0_r18_pt_seed=4834586_rh",
+    # ]
+    # for model_name in model_names:
+    #     main(model_name, dataset_name='nabirds', split='test', ckpt_path=f'./checkpoints/{model_name}/last.ckpt', data_root='./data')
 
     # model_names = [
     #     'nabirds_r18_fs_a3_seed=4834586',
@@ -233,20 +246,5 @@ if __name__ == '__main__':
 # main('vit_base_patch16_384.orig_in21k_ft_in1k')
 # main('vit_base_patch16_224.augreg_in1k')
 # main('vit_large_patch16_224.augreg_in21k_ft_in1k')
-'ssh -p 41072 root@83.26.116.107 -L 8080:localhost:8080'
-'scp -P 41072 root@83.26.116.107:/root/ConceptBook/checkpoints/dino.zip .'
-
-# Resnet 18: Loss: 1.5102 Acc: 0.6825
-# Resnet 50: Loss: 0.9545 Acc: 0.7805
-'''
-Class 0 acc: 0.96
-Class 1 acc: 0.96
-Class 2 acc: 0.88
-Class 3 acc: 0.82
-Class 4 acc: 0.88
-Class 5 acc: 0.84
-Class 7 acc: 0.72
-Class 8 acc: 0.84
-Class 9 acc: 0.98
-
-'''
+# 'ssh -p 41072 root@83.26.116.107 -L 8080:localhost:8080'
+# 'scp -P 41072 root@83.26.116.107:/root/ConceptBook/checkpoints/dino.zip .'

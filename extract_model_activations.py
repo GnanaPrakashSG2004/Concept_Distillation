@@ -36,13 +36,13 @@ def create_image_group(strategy, param_dicts, return_eval_dict=False):
         dataset_seed = dataset_params['seed']
         split = dataset_params['split']
         model_name, ckpt_path = param_dicts['model']
-        model_eval_path = f'model_evaluation/{dataset}/{model_name}_{split}.json'
+        model_eval_path = f'/scratch/swayam/rsvc-exps/model_evaluation/{dataset}/{model_name}_{split}.json'
         try:
             with open(model_eval_path, 'r') as f:
                 eval_dict = json.load(f)
                 predictions = eval_dict['predictions']
         except FileNotFoundError:
-            predictions = eval_model.main(model_name, dataset, split, ckpt_path, data_root='./data')['predictions']
+            predictions = eval_model.main(model_name, dataset, split, ckpt_path, data_root='/scratch/swayam/imagenet_data')['predictions']
 
         # load images
         print('Loading images')
@@ -59,9 +59,9 @@ def create_image_group(strategy, param_dicts, return_eval_dict=False):
             dataset_seed = dataset_params['seed']
             split = dataset_params['split']
             model_name, ckpt_path = pd['model']
-            model_eval_path = f'model_evaluation/{dataset}/{model_name}_{split}.json'
+            model_eval_path = f'/scratch/swayam/rsvc-exps/model_evaluation/{dataset}/{model_name}_{split}.json'
             _eval_dict = eval_model.load_or_run_evaluation(model_eval_path, dataset, split,
-                                                           model_name, ckpt_path, data_root='./data')
+                                                           model_name, ckpt_path, data_root='/scratch/swayam/imagenet_data')
             eval_dict.append(_eval_dict)
             predictions = _eval_dict['predictions']
 
@@ -107,7 +107,7 @@ def transform_images(image_path_list, dataset_name, model_out, param_dicts, tran
         dataset_name = 'nabirds'
     if transform_type == 'patchify':
         out = ceh.select_class_and_load_images(image_path_list=image_path_list,
-                                               data_root=f'./data/{dataset_name}/',
+                                               data_root=f'/scratch/swayam/imagenet_data/{dataset_name}/',
                                                transform=model_out['test_transform'])
         if out is None:
             print(f'Class {class_idx} not found in image group')
@@ -119,7 +119,7 @@ def transform_images(image_path_list, dataset_name, model_out, param_dicts, tran
     elif transform_type == 'test':
         num_image_repeats = param_dicts['feature_extraction_params']['num_image_repeats']
         out = ceh.select_class_and_load_images(image_path_list=image_path_list,
-                                               data_root=f'./data/{dataset_name}/',
+                                               data_root=f'/scratch/swayam/imagenet_data/{dataset_name}/',
                                                transform=model_out['test_transform'],
                                                num_repeats=num_image_repeats)
 
@@ -132,7 +132,7 @@ def transform_images(image_path_list, dataset_name, model_out, param_dicts, tran
     elif transform_type == 'train':
         num_image_repeats = param_dicts['feature_extraction_params']['num_image_repeats']
         out = ceh.select_class_and_load_images(image_path_list=image_path_list,
-                                               data_root=f'./data/{dataset_name}/',
+                                               data_root=f'/scratch/swayam/imagenet_data/{dataset_name}/',
                                                transform=model_out['transform'],
                                                num_repeats=num_image_repeats)
         if out is None:

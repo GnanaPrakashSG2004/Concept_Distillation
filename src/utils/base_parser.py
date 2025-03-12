@@ -15,7 +15,7 @@ def build_parser():
 
     # DATASET PARAMS
     parser.add_argument('--dataset', type=str, default='imagenet')
-    parser.add_argument('--dataset_split', type=str, default='train')
+    parser.add_argument('--dataset_split', type=str, default='val')
     parser.add_argument('--num_images', type=int, default=100)
     parser.add_argument('--dataset_seed', type=int, default=0)
     parser.add_argument('--class_list_path', type=str, default=None)

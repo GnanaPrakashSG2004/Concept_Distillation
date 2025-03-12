@@ -440,9 +440,9 @@ def compare_similarity_methods(method_max_concept_sim, visualization_output_dir,
 
 def main():
     parser = build_model_comparison_parser()
-    parser.add_argument('--importance_output_root', type=str, default='./')
+    parser.add_argument('--importance_output_root', type=str, default='/scratch/swayam/rsvc-exps/')
     parser.add_argument('--eval_dataset', type=str, default='imagenet')
-    parser.add_argument('--data_split', type=str, default='train')
+    parser.add_argument('--data_split', type=str, default='val')
     parser.add_argument('--visualize_summary_plot_comparison_indices', type=str, default='1')
 
     args = parser.parse_args()

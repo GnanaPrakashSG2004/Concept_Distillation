@@ -11,10 +11,11 @@ from src.dictionary_learning import DictionaryLearner
 
 def load_concepts(concepts_folder, layer, class_idx):
     try:
-        print(os.path.join(concepts_folder, layer, f'{class_idx}.pkl'), os.path.exists(os.path.join(concepts_folder, layer, f'{class_idx}.pkl')))
+        # print(os.path.join(concepts_folder, layer, f'{class_idx}.pkl'), os.path.exists(os.path.join(concepts_folder, layer, f'{class_idx}.pkl')))
         with open(os.path.join(concepts_folder, layer, f'{class_idx}.pkl'), 'rb') as f:
             concepts = pkl.load(f)
     except FileNotFoundError:
+        raise FileNotFoundError(f'Concepts for class {class_idx} not found')
         concepts = None
     return concepts
 

@@ -6,7 +6,7 @@
   "transform_type": "test",
   "seed": 42,
   "num_folds": 5,
-  "only_last_layer": true,
+  "only_last_layer": false,
   "patchify": true,
   "patch_size": 64,
 

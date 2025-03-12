@@ -15,7 +15,7 @@ def concept_extraction_parser():
 
     # DATASET PARAMS
     parser.add_argument('--dataset', type=str, default='imagenet')
-    parser.add_argument('--dataset_split', type=str, default='train')
+    parser.add_argument('--dataset_split', type=str, default='val')
     parser.add_argument('--num_images', type=int, default=100)
     parser.add_argument('--dataset_seed', type=int, default=0)
 
@@ -37,7 +37,7 @@ def concept_extraction_parser():
     parser.add_argument('--start_class_idx', type=int, default=0)
     parser.add_argument('--end_class_idx', type=int, default=1000)
     parser.add_argument('--class_list_path', type=str, default=None)
-    parser.add_argument('--output_root', type=str, default='./')
+    parser.add_argument('--output_root', type=str, default='/scratch/swayam/rsvc-exps/')
     parser.add_argument('--move_to_cpu_every', type=int, default=None)
     parser.add_argument('--move_to_cpu_in_hook', action='store_true')
     parser.add_argument('--batch_size', type=int, default=256)
@@ -133,7 +133,7 @@ def concept_comparison_parser():
 
         # DATASET PARAMS
         parser.add_argument(f'--dataset_{i}', type=str, default='imagenet')
-        parser.add_argument(f'--dataset_split_{i}', type=str, default='train')
+        parser.add_argument(f'--dataset_split_{i}', type=str, default='val')
         parser.add_argument(f'--num_images_{i}', type=int, default=100)
         parser.add_argument(f'--dataset_seed_{i}', type=int, default=0)
 
@@ -146,7 +146,7 @@ def concept_comparison_parser():
         parser.add_argument(f'--patch_size_{i}', type=int, default=64)
         parser.add_argument(f'--feature_layer_version_{i}', type=str, default="v1")
         parser.add_argument(f'--image_group_strategy_{i}', type=str, default='craft')
-        parser.add_argument(f'--concept_root_folder_{i}', type=str, default='./')
+        parser.add_argument(f'--concept_root_folder_{i}', type=str, default='/scratch/swayam/rsvc-exps/')
         parser.add_argument(f'--transform_{i}', type=str, default='patchify',
                             help='patchify (test + patchify), test (no patchify), or train')
         parser.add_argument(f'--num_image_repeats_{i}', type=int, default=1)
@@ -155,7 +155,7 @@ def concept_comparison_parser():
     parser.add_argument(f'--cmigs_num_images', type=int, default=100, help='num images per model to compute coeffs')
 
     # RUN PARAMS
-    parser.add_argument('--output_root', type=str, default='./')
+    parser.add_argument('--output_root', type=str, default='/scratch/swayam/rsvc-exps/')
     parser.add_argument('--gpu_id', type=int, default=0, help='GPU ID')
     parser.add_argument('--class_list_path', type=str, default=None)
     parser.add_argument('--start_class_idx', type=int, default=0)

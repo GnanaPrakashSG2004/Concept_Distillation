@@ -791,9 +791,9 @@ def compare_similarity_methods(method_max_concept_sim, visualization_output_dir,
 
 def main():
     parser = build_model_comparison_parser()
-    parser.add_argument('--importance_output_root', type=str, default='./')
+    parser.add_argument('--importance_output_root', type=str, default='/scratch/swayam/rsvc-exps')
     parser.add_argument('--eval_dataset', type=str, default='imagenet')
-    parser.add_argument('--data_split', type=str, default='train')
+    parser.add_argument('--data_split', type=str, default='val')
     parser.add_argument('--visualize_summary_plot_comparison_indices', type=str, default='1')
     parser.add_argument('--visualize_baseline', action='store_true')
     parser.add_argument('--overlay_mean', action='store_true')
@@ -879,6 +879,8 @@ def main():
             ig0_class_inds.append(class_idx)
             if int_grad0.mean(0).abs().max() > abs_max_0:
                 abs_max_0 = int_grad0.mean(0).abs().max()
+        else:
+            print(f'Class {class_idx} not found in {model0_int_grad_out_dir}')
 
         if os.path.exists(os.path.join(model1_int_grad_out_dir, f'{class_idx}.pth')):
             int_grad1 = torch.load(os.path.join(model1_int_grad_out_dir, f'{class_idx}.pth'))
@@ -887,6 +889,8 @@ def main():
             ig1_class_inds.append(class_idx)
             if int_grad1.mean(0).abs().max() > abs_max_1:
                 abs_max_1 = int_grad1.mean(0).abs().max()
+        else:
+            print(f'Class {class_idx} not found in {model1_int_grad_out_dir}')
 
     # with open(os.path.join(importance_output_dir, 'abs_max.json'), 'w') as f:
     #     json.dump({'0': abs_max_0.item(), '1': abs_max_1.item()}, f, indent=2)

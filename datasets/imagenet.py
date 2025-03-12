@@ -68,12 +68,12 @@ class ImageNetModified(torchvision.datasets.ImageNet):
         return len(self.active_samples)
 
 
-def imagenet(split: str, transforms=None, imagenet_dir = './data/imagenet/'):
+def imagenet(split: str, transforms=None, imagenet_dir = '/scratch/swayam/imagenet_data/imagenet/'):
     # n_files_found = sum([len(x) for _, _, x in os.walk(os.path.join(imagenet_dir, split))])
     # assert n_files_found >= n_files[split], \
     # f"Imagenet {split} dataset is not complete. Found {n_files_found}, expected {n_files[split]} files."
 
     return torchvision.datasets.ImageNet(imagenet_dir, split=split, transform=transforms)
 
-def imagenet_modified(split: str, transforms=None, imagenet_dir = './data/imagenet/'):
+def imagenet_modified(split: str, transforms=None, imagenet_dir = '/scratch/swayam/imagenet_data/imagenet/'):
     return ImageNetModified(imagenet_dir, split=split, transform=transforms)

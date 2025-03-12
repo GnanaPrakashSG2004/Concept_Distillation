@@ -203,6 +203,7 @@ def compare_model_concepts(methods_list, activations1, activations2, U1, U2):
     for mei, method_dict in enumerate(methods_list):
         method = method_dict['method']
         output_folder = method_dict['method_output_folder']
+        # print(f"Comparing {method} -- {output_folder}")
         if method in ['pearson', 'spearman']:
             out = correlation_comparison(method, U1, U2)
         elif method in ['linear_regression', 'ridge_regression', 'lasso_regression', 'lasso_regression_c', 'elastic_net', 'k_nearest_neighbors', 'radius_neighbors']:
@@ -282,7 +283,7 @@ def build_model_comparison_parser():
     parser = concept_comparison_parser()
     parser.add_argument('--comparison_config', type=str, required=True)
     parser.add_argument('--folder_exists', type=str, default='skip')
-    parser.add_argument('--comparison_output_root', type=str, default='./')
+    parser.add_argument('--comparison_output_root', type=str, default='/scratch/swayam/rsvc-exps/')
     return parser
 
 
@@ -412,7 +413,7 @@ def shared_concept_proposals_inference(params):
     for mi in range(len(fe_outs)):
         transform = transforms[mi]
         out = ceh.select_class_and_load_images(image_path_list=image_list,
-                                               data_root=f'./data/{dataset_name}/',
+                                               data_root=f'/scratch/swayam/imagenet_data/{dataset_name}/',
                                                transform=transform)
         image_size = out['image_size']
         patches = ceh.patchify_images(out['images_preprocessed'], patch_size, strides=None)
@@ -420,7 +421,7 @@ def shared_concept_proposals_inference(params):
         out = _batch_inference(models[mi], images_preprocessed, batch_size=256,  resize=image_size, device=device)
         act_hooks[mi].concatenate_layer_activations()
 
-        print(len(image_list), images_preprocessed.shape)
+        # print(len(image_list), images_preprocessed.shape)
 
     # update config with train test information
     for comparison_method in comparison_methods:
@@ -479,7 +480,7 @@ def main():
         comparison_methods_tmp.append(comparison_methods[mi])
     comparison_methods = comparison_methods_tmp
 
-    print(method_output_folders)
+    # print(method_output_folders)
 
     out = build_model_comparison_param_dicts(args)
     param_dicts1 = out['param_dicts1']
@@ -549,21 +550,25 @@ def main():
         )
         shared_concept_proposals_inference(params)
 
-        print('Computing concept coefficients')
+        # print('Computing concept coefficients')
         st = time.time()
         U1_layers = []
         for li, m0_layer in enumerate(m0_layers):  # reverse order to start from the last layer
             U1 = _process_coeff_for_layer(concepts_folders[0], m0_layer, class_idx, act_hooks[0].layer_activations[m0_layer])
 
             U1_layers.append(U1)
-        print(time.time() - st)
-
+        # print(time.time() - st)
         st = time.time()
         U2_layers = []
         for lj, m1_layer in enumerate(m1_layers):  # reverse order to start from the last layer
             U2 = _process_coeff_for_layer(concepts_folders[1], m1_layer, class_idx, act_hooks[1].layer_activations[m1_layer])
             U2_layers.append(U2)
-        print(time.time() - st)
+        # print(time.time() - st)
+        # print(f"M0 layers: {m0_layers}")
+        # print('\n\n\n\n')
+        # print(f"M1 layers: {m1_layers}")
+        # print(f"Length of M0 layers: {len(m0_layers)}")
+        # print(f"Length of M1 layers: {len(m1_layers)}")
 
         if args.multiprocessing:
             comparison_args = []
@@ -588,7 +593,6 @@ def main():
                     with open(fp, 'wb') as f:
                         pkl.dump(out, f)
         else:
-            print('Comparing model concepts')
             for li, m0_layer in enumerate(m0_layers):  # reverse order to start from the last layer
                 activations1 = act_hooks[0].layer_activations[m0_layer]
                 for lj, m1_layer in enumerate(m1_layers):  # reverse order to start from the last layer
@@ -599,6 +603,8 @@ def main():
                     for output_folder, out in comparison_outputs.items():
                         with open(os.path.join(output_folder, f'{class_idx}', f'{m0_layer}-{m1_layer}.pkl'), 'wb') as f:
                             pkl.dump(out, f)
+
+            print('Done comparing model concepts for class ', class_idx)
 
         for mi in range(len(fe_outs)):
             act_hooks[mi].reset_activation_dict()
