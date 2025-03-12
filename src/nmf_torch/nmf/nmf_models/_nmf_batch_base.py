@@ -38,11 +38,16 @@ class NMFBatchBase(NMFBase):
 
         self._max_iter = max_iter
 
-
     def _loss(self):
-        res = torch.tensor(0.0, dtype=torch.double, device=self._device_type) # make sure res is double to avoid summation errors
+        res = torch.tensor(
+            0.0, dtype=torch.double, device=self._device_type
+        )  # make sure res is double to avoid summation errors
         if self._beta == 2:
-            res += self._trace(self._WWT, self._HTH) / 2.0 - self._trace(self.H, self._XWT) + self._X_SS_half
+            res += (
+                self._trace(self._WWT, self._HTH) / 2.0
+                - self._trace(self.H, self._XWT)
+                + self._X_SS_half
+            )
         elif self._beta == 0 or self._beta == 1:
             Y = self._get_HW()
             X_flat = self.X.flatten()
@@ -62,14 +67,19 @@ class NMFBatchBase(NMFBase):
                 res += X_flat @ x_div_y.log() - X_flat.sum() + Y.sum()
         else:
             Y = self._get_HW()
-            res += (torch.sum(self.X.pow(self._beta) - self._beta * self.X * Y.pow(self._beta - 1) + (self._beta - 1) * Y.pow(self._beta))) / (self._beta * (self._beta - 1))
+            res += (
+                torch.sum(
+                    self.X.pow(self._beta)
+                    - self._beta * self.X * Y.pow(self._beta - 1)
+                    + (self._beta - 1) * Y.pow(self._beta)
+                )
+            ) / (self._beta * (self._beta - 1))
 
         # Add regularization terms.
         res += self._get_regularization_loss(self.H, self._l1_reg_H, self._l2_reg_H)
         res += self._get_regularization_loss(self.W, self._l1_reg_W, self._l2_reg_W)
 
         return torch.sqrt(2.0 * res)
-
 
     def fit(self, X):
         super().fit(X)

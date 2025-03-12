@@ -16,12 +16,13 @@ from pymf.pymf.cur import CUR
 
 __all__ = ["GREEDYCUR"]
 
+
 class GREEDYCUR(CUR):
-    '''
+    """
     GREEDYCUR(data,  data, k=-1, rrank=0, crank=0)
 
-    GREEDY-CUR Decomposition. Factorize a data matrix into three matrices s.t. 
-    F = | data - USV| is minimal. Unlike CUR, GREEDYCUR selects the rows 
+    GREEDY-CUR Decomposition. Factorize a data matrix into three matrices s.t.
+    F = | data - USV| is minimal. Unlike CUR, GREEDYCUR selects the rows
     and columns using GREEDY, i.e. it tries to find rows/columns that are close
     to SVD-based solutions.
 
@@ -29,7 +30,7 @@ class GREEDYCUR(CUR):
     ----------
     data : array_like [data_dimension x num_samples]
         the input data
-    rrank: int, optional 
+    rrank: int, optional
         Number of rows to sample from data.
         4 (default)
     crank: int, optional
@@ -37,20 +38,20 @@ class GREEDYCUR(CUR):
         4 (default)
     show_progress: bool, optional
         Print some extra information
-        False (default)    
-    
+        False (default)
+
     Attributes
     ----------
-        U,S,V : submatrices s.t. data = USV        
-    
+        U,S,V : submatrices s.t. data = USV
+
     Example
     -------
     >>> import numpy as np
     >>> from greedycur import GREEDYCUR
     >>> data = np.array([[1.0, 0.0, 2.0], [0.0, 1.0, 1.0]])
-    >>> cur_mdl = GREEDYCUR(data, rrank=1, crank=2)    
+    >>> cur_mdl = GREEDYCUR(data, rrank=1, crank=2)
     >>> cur_mdl.factorize()
-    '''
+    """
 
     def sample(self, A, c):
         """
@@ -66,28 +67,27 @@ class GREEDYCUR(CUR):
         """
         # set k to a value lower than the number of bases, usually
         # gives better results.
-        k = np.rint(c - c/5.0).astype(np.int64)
+        k = np.rint(c - c / 5.0).astype(np.int64)
         greedy_mdl = GREEDY(A, k=k, num_bases=c)
-        greedy_mdl.factorize(compute_h=False, compute_err=False, niter=1)        
+        greedy_mdl.factorize(compute_h=False, compute_err=False, niter=1)
         return greedy_mdl.select
-            
-            
+
     def factorize(self):
-        """
-        """
+        """ """
         # sample row and column indices that maximize the volume of the submatrix
         self._rid = self.sample(self.data.transpose(), self._rrank)
         self._cid = self.sample(self.data, self._crank)
         self._rcnt = np.ones(len(self._rid))
         self._ccnt = np.ones(len(self._cid))
-                                    
-        self.computeUCR()
 
+        self.computeUCR()
 
 
 def _test():
     import doctest
+
     doctest.testmod()
- 
+
+
 if __name__ == "__main__":
     _test()

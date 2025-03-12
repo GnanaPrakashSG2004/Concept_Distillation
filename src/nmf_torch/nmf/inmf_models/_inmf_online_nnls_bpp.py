@@ -8,14 +8,34 @@ from typing import List
 class INMFOnlineNnlsBpp(INMFOnlineBase):
     def _update_one_pass(self):
         """
-            A = sum hth; B = sum htx; for each batch
-            C = sum of hth; D = sum of htx; E = sum of AV; for all batches
+        A = sum hth; B = sum htx; for each batch
+        C = sum of hth; D = sum of htx; E = sum of AV; for all batches
         """
-        A = torch.zeros((self._n_components, self._n_components), dtype=self._tensor_dtype, device=self._device_type)
-        B = torch.zeros((self._n_components, self._n_features), dtype=self._tensor_dtype, device=self._device_type)
-        C = torch.zeros((self._n_components, self._n_components), dtype=self._tensor_dtype, device=self._device_type)
-        D = torch.zeros((self._n_components, self._n_features), dtype=self._tensor_dtype, device=self._device_type)
-        E = torch.zeros((self._n_components, self._n_features), dtype=self._tensor_dtype, device=self._device_type)
+        A = torch.zeros(
+            (self._n_components, self._n_components),
+            dtype=self._tensor_dtype,
+            device=self._device_type,
+        )
+        B = torch.zeros(
+            (self._n_components, self._n_features),
+            dtype=self._tensor_dtype,
+            device=self._device_type,
+        )
+        C = torch.zeros(
+            (self._n_components, self._n_components),
+            dtype=self._tensor_dtype,
+            device=self._device_type,
+        )
+        D = torch.zeros(
+            (self._n_components, self._n_features),
+            dtype=self._tensor_dtype,
+            device=self._device_type,
+        )
+        E = torch.zeros(
+            (self._n_components, self._n_features),
+            dtype=self._tensor_dtype,
+            device=self._device_type,
+        )
 
         batch_indices = torch.randperm(self._n_batches, device=self._device_type)
         for k in batch_indices:
@@ -26,7 +46,7 @@ class INMFOnlineNnlsBpp(INMFOnlineBase):
             A.fill_(0.0)
             B.fill_(0.0)
             while i < indices.shape[0]:
-                idx = indices[i:(i+self._chunk_size)]
+                idx = indices[i : (i + self._chunk_size)]
                 x = self.X[k][idx, :]
                 h = self.H[k][idx, :]
 
@@ -37,7 +57,9 @@ class INMFOnlineNnlsBpp(INMFOnlineBase):
                 xWVT = x @ WV.T
 
                 if self._lambda > 0.0:
-                    n_iter = nnls_bpp(WVWVT + self._lambda * VVT, xWVT.T, h.T, self._device_type)
+                    n_iter = nnls_bpp(
+                        WVWVT + self._lambda * VVT, xWVT.T, h.T, self._device_type
+                    )
                 else:
                     n_iter = nnls_bpp(WVWVT, xWVT.T, h.T, self._device_type)
                 # print(f"Batch {k} Block {i} H n_iter={n_iter}.")
@@ -50,7 +72,12 @@ class INMFOnlineNnlsBpp(INMFOnlineBase):
                 B += htx
 
                 # Update V
-                n_iter = nnls_bpp(A * (1.0 + self._lambda), B - A @ self.W, self.V[k], self._device_type)
+                n_iter = nnls_bpp(
+                    A * (1.0 + self._lambda),
+                    B - A @ self.W,
+                    self.V[k],
+                    self._device_type,
+                )
                 # print(f"Batch {k} Block {i} V n_iter={n_iter}.")
 
                 # Update sufficient statistics for all batches
@@ -65,14 +92,21 @@ class INMFOnlineNnlsBpp(INMFOnlineBase):
                 i += self._chunk_size
             E = E_new
 
-
     def _update_H_V(self):
         """
-            Fix W, only update V and H
-            A = sum hth; B = sum htx; for each batch
+        Fix W, only update V and H
+        A = sum hth; B = sum htx; for each batch
         """
-        A = torch.zeros((self._n_components, self._n_components), dtype=self._tensor_dtype, device=self._device_type)
-        B = torch.zeros((self._n_components, self._n_features), dtype=self._tensor_dtype, device=self._device_type)
+        A = torch.zeros(
+            (self._n_components, self._n_components),
+            dtype=self._tensor_dtype,
+            device=self._device_type,
+        )
+        B = torch.zeros(
+            (self._n_components, self._n_features),
+            dtype=self._tensor_dtype,
+            device=self._device_type,
+        )
 
         for k in range(self._n_batches):
             indices = torch.randperm(self.X[k].shape[0], device=self._device_type)
@@ -82,7 +116,7 @@ class INMFOnlineNnlsBpp(INMFOnlineBase):
             A.fill_(0.0)
             B.fill_(0.0)
             while i < indices.shape[0]:
-                idx = indices[i:(i+self._chunk_size)]
+                idx = indices[i : (i + self._chunk_size)]
                 x = self.X[k][idx, :]
                 h = self.H[k][idx, :]
 
@@ -93,7 +127,9 @@ class INMFOnlineNnlsBpp(INMFOnlineBase):
                 xWVT = x @ WV.T
 
                 if self._lambda > 0.0:
-                    n_iter = nnls_bpp(WVWVT + self._lambda * VVT, xWVT.T, h.T, self._device_type)
+                    n_iter = nnls_bpp(
+                        WVWVT + self._lambda * VVT, xWVT.T, h.T, self._device_type
+                    )
                 else:
                     n_iter = nnls_bpp(WVWVT, xWVT.T, h.T, self._device_type)
                 # print(f"Batch {k} Block {i} H n_iter={n_iter}.")
@@ -106,15 +142,21 @@ class INMFOnlineNnlsBpp(INMFOnlineBase):
                 B += htx
 
                 # Update V
-                n_iter = nnls_bpp(A * (1.0 + self._lambda), B - A @ self.W, self.V[k], self._device_type)
+                n_iter = nnls_bpp(
+                    A * (1.0 + self._lambda),
+                    B - A @ self.W,
+                    self.V[k],
+                    self._device_type,
+                )
                 # print(f"Batch {k} Block {i} V n_iter={n_iter}.")
 
                 i += self._chunk_size
 
-
     def _update_H(self):
-        """ Fix W and V, update H """
-        sum_h_err = torch.tensor(0.0, dtype=torch.double, device=self._device_type) # make sure sum_h_err is double to avoid summation errors
+        """Fix W and V, update H"""
+        sum_h_err = torch.tensor(
+            0.0, dtype=torch.double, device=self._device_type
+        )  # make sure sum_h_err is double to avoid summation errors
         for k in range(self._n_batches):
             WV = self.W + self.V[k]
             WVWVT = WV @ WV.T
@@ -122,13 +164,15 @@ class INMFOnlineNnlsBpp(INMFOnlineBase):
 
             i = 0
             while i < self.H[k].shape[0]:
-                x = self.X[k][i:(i+self._chunk_size), :]
-                h = self.H[k][i:(i+self._chunk_size), :]
+                x = self.X[k][i : (i + self._chunk_size), :]
+                h = self.H[k][i : (i + self._chunk_size), :]
 
                 # Update H
                 xWVT = x @ WV.T
                 if self._lambda > 0.0:
-                    n_iter = nnls_bpp(WVWVT + self._lambda * VVT, xWVT.T, h.T, self._device_type)
+                    n_iter = nnls_bpp(
+                        WVWVT + self._lambda * VVT, xWVT.T, h.T, self._device_type
+                    )
                 else:
                     n_iter = nnls_bpp(WVWVT, xWVT.T, h.T, self._device_type)
                 # print(f"Batch {k} Block {i} H n_iter={n_iter}.")
@@ -138,7 +182,6 @@ class INMFOnlineNnlsBpp(INMFOnlineBase):
                 i += self._chunk_size
 
         return torch.sqrt(sum_h_err + self._SSX)
-
 
     def fit(
         self,

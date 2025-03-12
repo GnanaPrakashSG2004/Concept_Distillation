@@ -21,12 +21,16 @@ class WrappedBlock(nn.Module):
     def forward_p1(self, x: torch.Tensor) -> torch.Tensor:
         self.ogx.append(x.clone())
         # print(x.shape)
-        x = x + self.block.drop_path1(self.block.ls1(self.block.attn(self.block.norm1(x))))
+        x = x + self.block.drop_path1(
+            self.block.ls1(self.block.attn(self.block.norm1(x)))
+        )
         x = self.mlp_p1(self.block.norm2(x))
         return x
 
     def forward_p2(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.ogx[self.sample_ind] + self.block.drop_path2(self.block.ls2(self.mlp_p2(x)))
+        x = self.ogx[self.sample_ind] + self.block.drop_path2(
+            self.block.ls2(self.mlp_p2(x))
+        )
         return x
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:

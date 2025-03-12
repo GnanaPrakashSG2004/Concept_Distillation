@@ -13,41 +13,32 @@ def test_basic():
 
     epsilon = 0.00001
 
-    Z = np.asarray([
-                    [73, 71, 52],
-                    [87, 74, 46],
-                    [72,  2,  7],
-                    [80, 89, 71]
-                    ])
+    Z = np.asarray([[73, 71, 52], [87, 74, 46], [72, 2, 7], [80, 89, 71]])
     x = np.asarray([49, 67, 68, 20])
 
     d, res = fnnls(Z, x)
 
-    expected_d = ([0.64953844,0,0]) 
+    expected_d = [0.64953844, 0, 0]
 
-    assert(np.max(np.abs(d - expected_d)) < epsilon)
+    assert np.max(np.abs(d - expected_d)) < epsilon
+
 
 def test_gaussian():
     """
-    Run a test of the fnnls implementation on 
-    random gaussian data. 
+    Run a test of the fnnls implementation on
+    random gaussian data.
 
-    Ensures that the solution is within a small 
+    Ensures that the solution is within a small
     epsilon of the true solution
     """
     epsilon = 0.00001
     np.random.seed(1)
 
-    Z = np.abs(np.random.rand(5,10))
+    Z = np.abs(np.random.rand(5, 10))
     x = np.abs(np.random.rand(5))
 
-    d, res = fnnls(Z,x)
+    d, res = fnnls(Z, x)
 
     expected_d = np.asarray([0, 0, 0, 0.49507457, 0, 0, 0.10518829, 0, 0, 0])
 
-    assert(np.max(np.abs(d - expected_d)) < epsilon)
-
-
-
-
-
+    assert np.max(np.abs(d - expected_d)) < epsilon

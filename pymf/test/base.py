@@ -3,7 +3,7 @@ import numpy as np
 
 def assert_set_equal(m1, m2, decimal=2):
     """
-    Tests if two matrices are equal s.t. each element of m1 can be found in 
+    Tests if two matrices are equal s.t. each element of m1 can be found in
     m2 and vice versa. An element means a column of m1/m2. Don't use this for
     large matrices as it will be very slow.
 
@@ -22,12 +22,14 @@ def assert_set_equal(m1, m2, decimal=2):
 
     for j in range(m1.shape[1]):
         for k in range(m2.shape[1]):
-            if np.allclose(m1[:,j], m2[:,k], atol=10**-decimal):
+            if np.allclose(m1[:, j], m2[:, k], atol=10**-decimal):
                 test1[j] = 1
-         
+
     for j in range(m2.shape[1]):
         for k in range(m1.shape[1]):
-            if np.allclose(m2[:,j], m1[:,k], atol=10**-decimal):
+            if np.allclose(m2[:, j], m1[:, k], atol=10**-decimal):
                 test2[j] = 1
 
-    assert np.sum(test1) + np.sum(test2) == m1.shape[1] + m2.shape[1], "{} not eq {}".format(m1,m2)
+    assert (
+        np.sum(test1) + np.sum(test2) == m1.shape[1] + m2.shape[1]
+    ), "{} not eq {}".format(m1, m2)

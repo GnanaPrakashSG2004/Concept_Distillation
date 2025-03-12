@@ -41,41 +41,49 @@ class NMFOnlineNnlsBpp(NMFOnlineBase):
         )
 
         if self._l2_reg_H > 0.0:
-            self._l2_H_I = torch.eye(self.k, dtype=self._tensor_dtype, device=self._device_type) * self._l2_reg_H
+            self._l2_H_I = (
+                torch.eye(self.k, dtype=self._tensor_dtype, device=self._device_type)
+                * self._l2_reg_H
+            )
         if self._l2_reg_W > 0.0:
-            self._l2_W_I = torch.eye(self.k, dtype=self._tensor_dtype, device=self._device_type)
-
+            self._l2_W_I = torch.eye(
+                self.k, dtype=self._tensor_dtype, device=self._device_type
+            )
 
     def _get_regularization_loss(self, mat, l1_reg, l2_reg):
         res = 0.0
         if l1_reg > 0:
             dim = 0 if mat.shape[0] == self.k else 1
-            res += l1_reg * mat.norm(p=1, dim=dim).norm(p=2)**2
+            res += l1_reg * mat.norm(p=1, dim=dim).norm(p=2) ** 2
         if l2_reg > 0:
-            res += l2_reg * mat.norm(p=2)**2 / 2
+            res += l2_reg * mat.norm(p=2) ** 2 / 2
         return res
-
 
     def _h_err(self, h, hth, WWT, xWT):
         # Forbenious-norm^2 in trace format (No X)
         res = self._trace(WWT, hth) / 2.0 - self._trace(h, xWT)
         # Add regularization terms if needed
         if self._l1_reg_H > 0.0:
-            res += self._l1_reg_H * h.norm(p=1, dim=1).norm(p=2)**2
+            res += self._l1_reg_H * h.norm(p=1, dim=1).norm(p=2) ** 2
         if self._l2_reg_H > 0.0:
             res += self._l2_reg_H * torch.trace(hth) / 2.0
         return res
 
-
     def _update_one_pass(self, l1_reg_W, l2_reg_W):
         indices = torch.randperm(self.X.shape[0], device=self._device_type)
-        A = torch.zeros((self.k, self.k), dtype=self._tensor_dtype, device=self._device_type)
-        B = torch.zeros((self.k, self.X.shape[1]), dtype=self._tensor_dtype, device=self._device_type)
+        A = torch.zeros(
+            (self.k, self.k), dtype=self._tensor_dtype, device=self._device_type
+        )
+        B = torch.zeros(
+            (self.k, self.X.shape[1]),
+            dtype=self._tensor_dtype,
+            device=self._device_type,
+        )
 
         i = 0
         num_processed = 0
         while i < indices.shape[0]:
-            idx = indices[i:(i+self._chunk_size)]
+            idx = indices[i : (i + self._chunk_size)]
             cur_chunksize = idx.shape[0]
             x = self.X[idx, :]
             h = self.H[idx, :]
@@ -123,15 +131,16 @@ class NMFOnlineNnlsBpp(NMFOnlineBase):
 
             i += self._chunk_size
 
-
     def _update_H(self):
         i = 0
         WWT = self.W @ self.W.T
 
-        sum_h_err = torch.tensor(0.0, dtype=torch.double, device=self._device_type) # make sure sum_h_err is double to avoid summation errors
+        sum_h_err = torch.tensor(
+            0.0, dtype=torch.double, device=self._device_type
+        )  # make sure sum_h_err is double to avoid summation errors
         while i < self.H.shape[0]:
-            x = self.X[i:(i+self._chunk_size), :]
-            h = self.H[i:(i+self._chunk_size), :]
+            x = self.X[i : (i + self._chunk_size), :]
+            h = self.H[i : (i + self._chunk_size), :]
 
             xWT = x @ self.W.T
 
@@ -151,12 +160,18 @@ class NMFOnlineNnlsBpp(NMFOnlineBase):
 
             i += self._chunk_size
 
-        return torch.sqrt(2.0 * (sum_h_err + self._X_SS_half + self._get_regularization_loss(self.W, self._l1_reg_W, self._l2_reg_W)))
-
+        return torch.sqrt(
+            2.0
+            * (
+                sum_h_err
+                + self._X_SS_half
+                + self._get_regularization_loss(self.W, self._l1_reg_W, self._l2_reg_W)
+            )
+        )
 
     def fit(self, X):
         super().fit(X)
-        assert self._beta==2, "Cannot perform online update when beta not equal to 2!"
+        assert self._beta == 2, "Cannot perform online update when beta not equal to 2!"
 
         # Online update.
         self._chunk_size = min(self.X.shape[0], self._chunk_size)

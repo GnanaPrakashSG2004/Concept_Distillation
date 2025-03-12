@@ -23,7 +23,7 @@ class NMFBatchHALS(NMFBatchBase):
         hals_tol: float = 0.05,
         hals_max_iter: int = 200,
     ):
-        assert beta_loss == 2.0 # only work for F norm for now
+        assert beta_loss == 2.0  # only work for F norm for now
 
         super().__init__(
             n_components=n_components,
@@ -41,14 +41,15 @@ class NMFBatchHALS(NMFBatchBase):
             max_iter=max_iter,
         )
 
-        self._zero = torch.tensor(0.0, dtype=self._tensor_dtype, device=self._device_type)
+        self._zero = torch.tensor(
+            0.0, dtype=self._tensor_dtype, device=self._device_type
+        )
         self._hals_tol = hals_tol
         self._hals_max_iter = hals_max_iter
 
-
     def _update_H(self):
         for i in range(self._hals_max_iter):
-            cur_max = 0.0    
+            cur_max = 0.0
             for k in range(self.k):
                 numer = self._XWT[:, k] - self.H @ self._WWT[:, k]
                 if self._l1_reg_H > 0.0:
@@ -59,7 +60,7 @@ class NMFBatchHALS(NMFBatchBase):
                 else:
                     h_new = self.H[:, k] + numer / self._WWT[k, k]
                 if torch.isnan(h_new).sum() > 0:
-                    h_new[:] = 0.0 # divide zero error: set h_new to 0
+                    h_new[:] = 0.0  # divide zero error: set h_new to 0
                 else:
                     h_new = h_new.maximum(self._zero)
                 cur_max = max(cur_max, torch.abs(self.H[:, k] - h_new).max())
@@ -68,7 +69,6 @@ class NMFBatchHALS(NMFBatchBase):
                 break
 
         self._HTH = self.H.T @ self.H
-
 
     def _update_W(self):
         HTX = self.H.T @ self.X
@@ -84,7 +84,7 @@ class NMFBatchHALS(NMFBatchBase):
                 else:
                     w_new = self.W[k, :] + numer / self._HTH[k, k]
                 if torch.isnan(w_new).sum() > 0:
-                    w_new[:] = 0.0 # divide zero error: set w_new to 0
+                    w_new[:] = 0.0  # divide zero error: set w_new to 0
                 else:
                     w_new = w_new.maximum(self._zero)
                 cur_max = max(cur_max, torch.abs(self.W[k, :] - w_new).max())
@@ -94,7 +94,6 @@ class NMFBatchHALS(NMFBatchBase):
 
         self._WWT = self.W @ self.W.T
         self._XWT = self.X @ self.W.T
-
 
     def fit(self, X, verbose=True):
         super().fit(X)

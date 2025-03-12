@@ -1,14 +1,18 @@
 import os
 import numpy as np
+from src.utils.funcs import get_username
+
 
 def load_imagenet_image_paths():
-    path = '/scratch/swayam/imagenet_data/imagenet/val/'
+    path = f"/scratch/{get_username()}/imagenet_data/imagenet/val/"
     image_folders = os.listdir(path)
     image_paths = []
     for folder in image_folders:
         folder_path = os.path.join(path, folder)
         images = os.listdir(folder_path)
-        image_paths.extend([(os.path.join(folder_path, image), image) for image in images])
+        image_paths.extend(
+            [(os.path.join(folder_path, image), image) for image in images]
+        )
 
     # sort by image name
     image_paths = sorted(image_paths, key=lambda x: x[1])

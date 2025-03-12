@@ -16,21 +16,22 @@ from pymf.pymf.cmde import CMD
 
 __all__ = ["CURSL"]
 
+
 class CURSL(CMD):
-    """      
+    """
     CURSL(data,  data, rrank=0, crank=0)
-        
+
     CUR/CMD Decomposition. Factorize a data matrix into three matrices s.t.
     F = | data - USV| is minimal. CURSL randomly selects rows and columns from
     data for building U and V, respectively. The importance sampling is based
     on a statistical leverage score from the top-k singular vectors (k is
-    currently set to 4/5*rrank and 4/5*crank). 
-    
+    currently set to 4/5*rrank and 4/5*crank).
+
     Parameters
     ----------
     data : array_like [data_dimension x num_samples]
         the input data
-    rrank: int, optional 
+    rrank: int, optional
         Number of rows to sample from data.
         4 (default)
     crank: int, optional
@@ -38,54 +39,57 @@ class CURSL(CMD):
         4 (default)
     show_progress: bool, optional
         Print some extra information
-        False (default)    
-    
+        False (default)
+
     Attributes
     ----------
-        U,S,V : submatrices s.t. data = USV  (or _C _U _R)      
-    
+        U,S,V : submatrices s.t. data = USV  (or _C _U _R)
+
     Example
     -------
     >>> import numpy as np
     >>> from cur import CUR
     >>> data = np.array([[1.0, 0.0, 2.0], [0.0, 1.0, 1.0]])
-    >>> cur_mdl = CURSL(data, rrank=1, crank=2)    
+    >>> cur_mdl = CURSL(data, rrank=1, crank=2)
     >>> cur_mdl.factorize()
     """
-    
+
     def __init__(self, data, k=-1, rrank=0, crank=0):
         CMD.__init__(self, data, k=k, rrank=rrank, crank=rrank)
-        
+
     def sample_probability(self):
-        def comp_prob(d, k):           
-            # compute statistical leverage score     
-            c = np.round(k - k/5.0)
-        
+        def comp_prob(d, k):
+            # compute statistical leverage score
+            c = np.round(k - k / 5.0)
+
             svd_mdl = SVD(d, k=c)
             svd_mdl.factorize()
-            
+
             if scipy.sparse.issparse(self.data):
-                A = svd_mdl.V.multiply(svd_mdl.V)           
+                A = svd_mdl.V.multiply(svd_mdl.V)
                 ## Rule 1
-                pcol = np.array(A.sum(axis=0)/k)                                    
+                pcol = np.array(A.sum(axis=0) / k)
             else:
-                A = svd_mdl.V[:k,:]**2.0         
+                A = svd_mdl.V[:k, :] ** 2.0
                 ## Rule 1
-                pcol = A.sum(axis=0)/k            
-                
-            #c = k * np.log(k/ (self._eps**2.0))
-            #pcol = c * pcol.reshape((-1,1)) 
-            pcol /= np.sum(pcol)                     
+                pcol = A.sum(axis=0) / k
+
+            # c = k * np.log(k/ (self._eps**2.0))
+            # pcol = c * pcol.reshape((-1,1))
+            pcol /= np.sum(pcol)
             return pcol
-            
+
         pcol = comp_prob(self.data, self._rrank)
-        prow = comp_prob(self.data.transpose(), self._crank)        
-        
-        return (prow.reshape(-1,1), pcol.reshape(-1,1))  
+        prow = comp_prob(self.data.transpose(), self._crank)
+
+        return (prow.reshape(-1, 1), pcol.reshape(-1, 1))
+
 
 def _test():
     import doctest
+
     doctest.testmod()
- 
+
+
 if __name__ == "__main__":
     _test()

@@ -30,16 +30,18 @@ class INMFBatchBase(INMFBase):
 
         self._max_iter = max_iter
 
-
     def _loss(self):
-        res = torch.tensor(0.0, dtype=torch.double, device=self._device_type) # make sure res is double to avoid summation errors
+        res = torch.tensor(
+            0.0, dtype=torch.double, device=self._device_type
+        )  # make sure res is double to avoid summation errors
         for k in range(self._n_batches):
-            res += self._trace(self._HTH[k], self._WVWVT[k]) - 2.0 * self._trace(self.H[k], self._XWVT[k])
+            res += self._trace(self._HTH[k], self._WVWVT[k]) - 2.0 * self._trace(
+                self.H[k], self._XWVT[k]
+            )
             if self._lambda > 0.0:
                 res += self._lambda * self._trace(self._VVT[k], self._HTH[k])
         res += self._SSX
         return torch.sqrt(res)
-
 
     def fit(
         self,

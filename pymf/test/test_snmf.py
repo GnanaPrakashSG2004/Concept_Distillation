@@ -2,10 +2,10 @@ from pymf.snmf import SNMF
 import numpy as np
 from numpy.testing import assert_almost_equal
 
+
 class TestNMF:
 
-    data = np.array([[1.0, 0.0, 0.2], 
-                     [0.0, -1.0, 0.3]])
+    data = np.array([[1.0, 0.0, 0.2], [0.0, -1.0, 0.3]])
 
     def test_snmf(self):
         mdl = SNMF(self.data, num_bases=2)
@@ -20,4 +20,4 @@ class TestNMF:
 
         # and H is not allowed to have <0 values
         l = np.where(mdl.H < 0)[0]
-        assert(len(l) == 0)
+        assert len(l) == 0

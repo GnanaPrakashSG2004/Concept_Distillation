@@ -33,6 +33,8 @@ import pickle
 import numpy as np
 import matplotlib.pyplot as plt
 from collections import defaultdict
+from src.utils.funcs import get_username
+
 
 def parse_layer_names(filename):
     """
@@ -58,8 +60,10 @@ def load_correlation_matrix(pkl_path):
     if k_i is None or k_j is None:
         raise ValueError(f"Metadata missing in file {pkl_path}")
     if k_i != k_j:
-        raise ValueError(f"Number of concepts mismatch in file {pkl_path}: {k_i} vs {k_j}")
-    
+        raise ValueError(
+            f"Number of concepts mismatch in file {pkl_path}: {k_i} vs {k_j}"
+        )
+
     k = k_i
     assert k == k_j, f"Number of concepts mismatch in file {pkl_path}: {k_i} vs {k_j}"
 
@@ -101,11 +105,14 @@ def aggregate_mmcs(base_folder):
 
     layer_pair_to_mcs1 = defaultdict(list)
     layer_pair_to_mcs2 = defaultdict(list)
-    
+
     global_k = None
 
-    class_folders = [d for d in os.listdir(base_folder)
-                     if os.path.isdir(os.path.join(base_folder, d))]
+    class_folders = [
+        d
+        for d in os.listdir(base_folder)
+        if os.path.isdir(os.path.join(base_folder, d))
+    ]
     class_folders.sort(key=lambda x: int(x) if x.isdigit() else x)
 
     for cls in class_folders:
@@ -126,8 +133,10 @@ def aggregate_mmcs(base_folder):
                 global_k = k
 
             elif global_k != k:
-                raise ValueError(f"Inconsistent number of concepts in file {pkl_file}. "
-                                 f"Expected {global_k} but got {k}.")
+                raise ValueError(
+                    f"Inconsistent number of concepts in file {pkl_file}. "
+                    f"Expected {global_k} but got {k}."
+                )
 
             # Computing mcs values for this file
             mcs1, mcs2 = compute_mcs_from_matrix(R)
@@ -196,8 +205,10 @@ def main(base_folder):
     print("Aggregating MMCS values from pickle files...")
     mmcs_dict, model1_layers, model2_layers, k = aggregate_mmcs(base_folder)
     print(f"Consistent number of concepts (k): {k}")
-    print(f"Found {len(model1_layers)} unique model1 layers and {len(model2_layers)} unique model2 layers.")
-    
+    print(
+        f"Found {len(model1_layers)} unique model1 layers and {len(model2_layers)} unique model2 layers."
+    )
+
     M = build_mmcs_matrix(mmcs_dict, model1_layers, model2_layers)
     plot_mmcs_heatmap(M, model1_layers, model2_layers)
 
@@ -206,7 +217,9 @@ if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python generate_heatmap.py <base_folder>")
         print("Example:")
-        print("  python generate_heatmap.py /scratch/swayam/rsvc-exps/outputs/data/concept_comparison/r18_flv=v1_vs_r50_flv=v1-nmf=10_seed=0/ni=200_nir=1_tt=te_seed=42_trpct=None_nf=5_ptc=t_ps=64/pearson/")
+        print(
+            f"  python generate_heatmap.py /scratch/{get_username()}/rsvc-exps/outputs/data/concept_comparison/r18_flv=v1_vs_r50_flv=v1-nmf=10_seed=0/ni=200_nir=1_tt=te_seed=42_trpct=None_nf=5_ptc=t_ps=64/pearson/"
+        )
         sys.exit(1)
     base_folder = sys.argv[1]
     main(base_folder)

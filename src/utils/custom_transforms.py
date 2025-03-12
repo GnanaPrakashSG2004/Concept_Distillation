@@ -74,4 +74,6 @@ class ModifiedRandomResizedCrop(RandomResizedCrop):
             PIL Image or Tensor: Randomly cropped and resized image.
         """
         i, j, h, w = self.get_params(img, self.scale, self.ratio)
-        return resized_crop(img, i, j, h, w, self.size, self.interpolation, antialias=self.antialias)
+        return resized_crop(
+            img, i, j, h, w, self.size, self.interpolation, antialias=self.antialias
+        )

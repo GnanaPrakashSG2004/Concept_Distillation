@@ -5,15 +5,11 @@ from base import assert_set_equal
 
 class TestLAESA:
 
-    data = np.array([[1.0, 0.0, 0.0, 0.5], 
-                     [0.0, 1.0, 0.0, 0.0]])
+    data = np.array([[1.0, 0.0, 0.0, 0.5], [0.0, 1.0, 0.0, 0.0]])
 
-    W = np.array([[1.0, 0.0, 0.0], 
-                  [0.0, 1.0, 0.0]])
+    W = np.array([[1.0, 0.0, 0.0], [0.0, 1.0, 0.0]])
 
-    H = np.array([[1.0, 0.0, 0.0, 0.5], 
-                  [0.0, 1.0, 0.0, 0.0], 
-                  [0.0, 0.0, 1.0, 0.5]])
+    H = np.array([[1.0, 0.0, 0.0, 0.5], [0.0, 1.0, 0.0, 0.0], [0.0, 0.0, 1.0, 0.5]])
 
     def test_compute_w(self):
         mdl = LAESA(self.data, num_bases=3)

@@ -46,7 +46,6 @@ class NMFOnlineMU(NMFOnlineBase):
         self._h_tol = h_tol
         self._w_tol = w_tol
 
-
     def _update_matrix(self, mat, numer, denom):
         rates = numer / denom
         rates[denom < self._epsilon] = 0.0
@@ -54,16 +53,21 @@ class NMFOnlineMU(NMFOnlineBase):
         mat *= rates
         return cur_max
 
-
     def _update_one_pass(self, l1_reg_W, l2_reg_W):
         indices = torch.randperm(self.X.shape[0], device=self._device_type)
-        A = torch.zeros((self.k, self.k), dtype=self._tensor_dtype, device=self._device_type)
-        B = torch.zeros((self.k, self.X.shape[1]), dtype=self._tensor_dtype, device=self._device_type)
+        A = torch.zeros(
+            (self.k, self.k), dtype=self._tensor_dtype, device=self._device_type
+        )
+        B = torch.zeros(
+            (self.k, self.X.shape[1]),
+            dtype=self._tensor_dtype,
+            device=self._device_type,
+        )
 
         i = 0
         num_processed = 0
         while i < indices.shape[0]:
-            idx = indices[i:(i+self._chunk_size)]
+            idx = indices[i : (i + self._chunk_size)]
             cur_chunksize = idx.shape[0]
             x = self.X[idx, :]
             h = self.H[idx, :]
@@ -113,21 +117,25 @@ class NMFOnlineMU(NMFOnlineBase):
                 if l2_reg_W > 0.0:
                     W_factor_denom += l2_reg_W * self.W
                 cur_max = self._update_matrix(self.W, W_factor_numer, W_factor_denom)
-                if j + 1 < self._chunk_max_iter and cur_max / self.W.mean() < self._w_tol:
+                if (
+                    j + 1 < self._chunk_max_iter
+                    and cur_max / self.W.mean() < self._w_tol
+                ):
                     break
             # print(f"Block {i} update W iterates {j+1} iterations.")
 
             i += self._chunk_size
 
-
     def _update_H(self):
         i = 0
         WWT = self.W @ self.W.T
 
-        sum_h_err = torch.tensor(0.0, dtype=torch.double, device=self._device_type) # make sure sum_h_err is double to avoid summation errors
+        sum_h_err = torch.tensor(
+            0.0, dtype=torch.double, device=self._device_type
+        )  # make sure sum_h_err is double to avoid summation errors
         while i < self.H.shape[0]:
-            x = self.X[i:(i+self._chunk_size), :]
-            h = self.H[i:(i+self._chunk_size), :]
+            x = self.X[i : (i + self._chunk_size), :]
+            h = self.H[i : (i + self._chunk_size), :]
 
             xWT = x @ self.W.T
 
@@ -152,12 +160,18 @@ class NMFOnlineMU(NMFOnlineBase):
 
             i += self._chunk_size
 
-        return torch.sqrt(2.0 * (sum_h_err + self._X_SS_half + self._get_regularization_loss(self.W, self._l1_reg_W, self._l2_reg_W)))
-
+        return torch.sqrt(
+            2.0
+            * (
+                sum_h_err
+                + self._X_SS_half
+                + self._get_regularization_loss(self.W, self._l1_reg_W, self._l2_reg_W)
+            )
+        )
 
     def fit(self, X):
         super().fit(X)
-        assert self._beta==2, "Cannot perform online update when beta not equal to 2!"
+        assert self._beta == 2, "Cannot perform online update when beta not equal to 2!"
 
         # Online update.
         self._chunk_size = min(self.X.shape[0], self._chunk_size)
