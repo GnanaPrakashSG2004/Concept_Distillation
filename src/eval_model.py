@@ -228,7 +228,7 @@ def compute_stats_main(
 
     stats = compute_stats(model_name, out)
     with open(
-        f"./{save_root}/{dataset_name}/{model_name}_stats_{split}.json", "w"
+        f"{save_root}/{dataset_name}/{model_name}_stats_{split}.json", "w"
     ) as f:
         json.dump(stats, f)
 

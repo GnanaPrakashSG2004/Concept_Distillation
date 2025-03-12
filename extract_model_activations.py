@@ -70,11 +70,12 @@ def create_image_group(strategy, param_dicts, return_eval_dict=False):
         try:
             # Try to load pre-computed evaluation results
             with open(model_eval_path, "r") as f:
+                print("\tEvals found; Loading them...")
                 eval_dict = json.load(f)
                 predictions = eval_dict["predictions"]
         except FileNotFoundError:
             # If evaluation results not found, run evaluation and get predictions
-            print("Evals not found; Evaluating model again...")
+            print("\tEvals not found; Evaluating model again...")
             predictions = eval_model.main(
                 model_name,
                 dataset,
@@ -111,7 +112,8 @@ def create_image_group(strategy, param_dicts, return_eval_dict=False):
                 split,
                 model_name,
                 ckpt_path,
-                data_root="/scratch/{get_username()}/imagenet_data",
+                data_root=f"/scratch/{get_username()}/imagenet_data",
+                save_root=f"/scratch/{get_username()}/rsvc-exps/model_evaluation",
             )
             eval_dict.append(_eval_dict)
             predictions = _eval_dict["predictions"]

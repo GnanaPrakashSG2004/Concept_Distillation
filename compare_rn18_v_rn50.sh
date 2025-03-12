@@ -1,3 +1,4 @@
+# export CUDA_VISIBLE_DEVICES=2
 
 python extract_model_activations.py --model resnet18.a2_in1k --dataset_split val --feature_layer_version v1 --output_root /scratch/$(whoami)/rsvc-exps/ --start_class_idx 0 --end_class_idx 100
 python extract_model_activations.py --model resnet50.a2_in1k --dataset_split val --feature_layer_version v1 --output_root /scratch/$(whoami)/rsvc-exps/ --start_class_idx 0 --end_class_idx 100
