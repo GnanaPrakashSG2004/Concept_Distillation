@@ -68,6 +68,6 @@ lab/
 # mac os
 .DS_Store
 
-*.png
+# *.png
 checkpoints/
 outputs/
