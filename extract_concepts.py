@@ -14,7 +14,8 @@ from sklearn.exceptions import ConvergenceWarning
 def load_activations(activations_root_folder, layer, class_idx):
     try:
         activations = torch.load(
-            os.path.join(activations_root_folder, layer, f"{class_idx}.pth")
+            os.path.join(activations_root_folder, layer, f"{class_idx}.pth"),
+            weights_only=True,
         )
         return activations
     except FileNotFoundError:
@@ -33,18 +34,22 @@ def main():
         model_name, ckpt_path, device=param_dicts["device"], eval=True
     )
     model = model_out["model"]
+    print("Loaded model...")
 
     # Insert hooks to track activations
     fe_out = ceh.load_feature_extraction_layers(
         model, param_dicts["feature_extraction_params"]
     )
+    print("Loaded layers to extract from...")
 
     class_list = param_dicts["class_list"]
     activations_folder = os.path.join(save_names["activations_dir"], "activations")
     concepts_folder = os.path.join(save_names["concepts_dir"], "concepts")
     os.makedirs(concepts_folder, exist_ok=True)
     dataset_name = param_dicts["dataset_params"]["dataset_name"]
+    print("Loaded folders...")
 
+    print("Extracting concepts...")
     num_layers = len(fe_out["layer_names"])
     for li, layer in enumerate(
         fe_out["layer_names"][::-1]
@@ -56,12 +61,14 @@ def main():
         pbar = tqdm(class_list)
         for class_idx in pbar:
             if os.path.exists(os.path.join(layer_folder, f"{class_idx}.pkl")):
+                cur_path = os.path.join(layer_folder, f"{class_idx}.pkl")
+                print(f"\t{cur_path} already exists, moving on...")
                 continue
             pbar.set_description(f"Class {class_idx}")
             activations = load_activations(activations_folder, layer, class_idx)
-            if activations is None:
-                print(f"Activations for class {class_idx} not found. Skipping...")
-                continue
+            # if activations is None:
+            #     print(f"Activations for class {class_idx} not found. Skipping...")
+            #     continue
             # Generate Concepts
             dl_params = param_dicts["dl_params"]
             dl = DictionaryLearner(dl_params["decomp_method"], params=dl_params)
