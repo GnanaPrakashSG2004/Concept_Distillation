@@ -32,7 +32,7 @@ class ConceptDistillationTrainer:
         mapping_file,
         base_dataset,
         batch_size=32,
-        num_workers=8
+        num_workers=0
     ):
         self.num_classes = 1000
         self.batch_size = batch_size
@@ -46,13 +46,6 @@ class ConceptDistillationTrainer:
             self.teacher_concepts[class_id] = data["W"]
 
         mapping_arr = np.load(mapping_file, allow_pickle=True).item()
-        # print(mapping_arr.shape)
-        print(f"Keys: {mapping_arr.keys()}")
-
-        num_samples = sum(len(mapping_arr[class_id]) for class_id in range(self.num_classes))
-        print(f"Total samples: {num_samples}")
-        for i in range(self.num_classes):
-            print(f"Class {i}: {len(mapping_arr[i])} samples, num batches: {math.ceil(len(mapping_arr[i]) / batch_size)}")
 
         self.datasets = {}
         self.dataloaders = {}
@@ -83,7 +76,6 @@ class ConceptDistillationTrainer:
             valid_class_ids = list(RemLen.keys())
 
             num_batches = sum(math.ceil(len(self.datasets[class_id]) / self.batch_size) for class_id in valid_class_ids)
-            print(f"Total batches: {num_batches}")
 
             for batch_idx in tqdm(range(num_batches)):
                 chosen_class = random.choice(valid_class_ids)
