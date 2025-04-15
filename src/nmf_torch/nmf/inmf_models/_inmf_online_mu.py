@@ -40,7 +40,6 @@ class INMFOnlineMU(INMFOnlineBase):
         self._v_tol = v_tol
         self._w_tol = w_tol
 
-
     def _update_matrix(self, mat, numer, denom):
         rates = numer / denom
         rates[denom < self._epsilon] = 0.0
@@ -48,17 +47,36 @@ class INMFOnlineMU(INMFOnlineBase):
         mat *= rates
         return cur_max
 
-
     def _update_one_pass(self):
         """
-            A = sum hth; B = sum htx; for each batch
-            C = sum of hth; D = sum of htx; E = sum of AV; for all batches
+        A = sum hth; B = sum htx; for each batch
+        C = sum of hth; D = sum of htx; E = sum of AV; for all batches
         """
-        A = torch.zeros((self._n_components, self._n_components), dtype=self._tensor_dtype, device=self._device_type)
-        B = torch.zeros((self._n_components, self._n_features), dtype=self._tensor_dtype, device=self._device_type)
-        C = torch.zeros((self._n_components, self._n_components), dtype=self._tensor_dtype, device=self._device_type)
-        D = torch.zeros((self._n_components, self._n_features), dtype=self._tensor_dtype, device=self._device_type)
-        E = torch.zeros((self._n_components, self._n_features), dtype=self._tensor_dtype, device=self._device_type)
+        A = torch.zeros(
+            (self._n_components, self._n_components),
+            dtype=self._tensor_dtype,
+            device=self._device_type,
+        )
+        B = torch.zeros(
+            (self._n_components, self._n_features),
+            dtype=self._tensor_dtype,
+            device=self._device_type,
+        )
+        C = torch.zeros(
+            (self._n_components, self._n_components),
+            dtype=self._tensor_dtype,
+            device=self._device_type,
+        )
+        D = torch.zeros(
+            (self._n_components, self._n_features),
+            dtype=self._tensor_dtype,
+            device=self._device_type,
+        )
+        E = torch.zeros(
+            (self._n_components, self._n_features),
+            dtype=self._tensor_dtype,
+            device=self._device_type,
+        )
 
         batch_indices = torch.randperm(self._n_batches, device=self._device_type)
         for k in batch_indices:
@@ -69,7 +87,7 @@ class INMFOnlineMU(INMFOnlineBase):
             A.fill_(0.0)
             B.fill_(0.0)
             while i < indices.shape[0]:
-                idx = indices[i:(i+self._chunk_size)]
+                idx = indices[i : (i + self._chunk_size)]
                 x = self.X[k][idx, :]
                 h = self.H[k][idx, :]
 
@@ -81,9 +99,16 @@ class INMFOnlineMU(INMFOnlineBase):
 
                 h_factor_numer = xWVT
                 for j in range(self._chunk_max_iter):
-                    h_factor_denom = h @ (WVWVT + self._lambda * VVT) if self._lambda > 0.0 else h @ WVWVT
+                    h_factor_denom = (
+                        h @ (WVWVT + self._lambda * VVT)
+                        if self._lambda > 0.0
+                        else h @ WVWVT
+                    )
                     cur_max = self._update_matrix(h, h_factor_numer, h_factor_denom)
-                    if j + 1 < self._chunk_max_iter and cur_max / h.mean() < self._h_tol:
+                    if (
+                        j + 1 < self._chunk_max_iter
+                        and cur_max / h.mean() < self._h_tol
+                    ):
                         break
                 # print(f"Batch {k} Block {i} update H iterates {j+1} iterations.")
                 self.H[k][idx, :] = h
@@ -98,9 +123,14 @@ class INMFOnlineMU(INMFOnlineBase):
                 V_factor_numer = B
                 for j in range(self._chunk_max_iter):
                     V_factor_denom = A @ (WV + self._lambda * self.V[k])
-                    cur_max = self._update_matrix(self.V[k], V_factor_numer, V_factor_denom)
+                    cur_max = self._update_matrix(
+                        self.V[k], V_factor_numer, V_factor_denom
+                    )
                     WV = self.W + self.V[k]
-                    if j + 1 < self._chunk_max_iter and cur_max / self.V[k].mean() < self._v_tol:
+                    if (
+                        j + 1 < self._chunk_max_iter
+                        and cur_max / self.V[k].mean() < self._v_tol
+                    ):
                         break
                 # print(f"Batch {k} Block {i} update V iterates {j+1} iterations.")
 
@@ -113,21 +143,33 @@ class INMFOnlineMU(INMFOnlineBase):
                 W_factor_numer = D
                 for j in range(self._chunk_max_iter):
                     W_factor_denom = C @ self.W + E_new
-                    cur_max = self._update_matrix(self.W, W_factor_numer, W_factor_denom)
-                    if j + 1 < self._chunk_max_iter and cur_max / self.W.mean() < self._w_tol:
+                    cur_max = self._update_matrix(
+                        self.W, W_factor_numer, W_factor_denom
+                    )
+                    if (
+                        j + 1 < self._chunk_max_iter
+                        and cur_max / self.W.mean() < self._w_tol
+                    ):
                         break
                 # print(f"Batch {k} Block {i} update W iterates {j+1} iterations.")
                 i += self._chunk_size
             E = E_new
 
-
     def _update_H_V(self):
         """
-            Fix W, only update V and H
-            A = sum hth; B = sum htx; for each batch
+        Fix W, only update V and H
+        A = sum hth; B = sum htx; for each batch
         """
-        A = torch.zeros((self._n_components, self._n_components), dtype=self._tensor_dtype, device=self._device_type)
-        B = torch.zeros((self._n_components, self._n_features), dtype=self._tensor_dtype, device=self._device_type)
+        A = torch.zeros(
+            (self._n_components, self._n_components),
+            dtype=self._tensor_dtype,
+            device=self._device_type,
+        )
+        B = torch.zeros(
+            (self._n_components, self._n_features),
+            dtype=self._tensor_dtype,
+            device=self._device_type,
+        )
 
         for k in range(self._n_batches):
             indices = torch.randperm(self.X[k].shape[0], device=self._device_type)
@@ -137,7 +179,7 @@ class INMFOnlineMU(INMFOnlineBase):
             A.fill_(0.0)
             B.fill_(0.0)
             while i < indices.shape[0]:
-                idx = indices[i:(i+self._chunk_size)]
+                idx = indices[i : (i + self._chunk_size)]
                 x = self.X[k][idx, :]
                 h = self.H[k][idx, :]
 
@@ -149,9 +191,16 @@ class INMFOnlineMU(INMFOnlineBase):
 
                 h_factor_numer = xWVT
                 for j in range(self._chunk_max_iter):
-                    h_factor_denom = h @ (WVWVT + self._lambda * VVT) if self._lambda > 0.0 else h @ WVWVT
+                    h_factor_denom = (
+                        h @ (WVWVT + self._lambda * VVT)
+                        if self._lambda > 0.0
+                        else h @ WVWVT
+                    )
                     cur_max = self._update_matrix(h, h_factor_numer, h_factor_denom)
-                    if j + 1 < self._chunk_max_iter and cur_max / h.mean() < self._h_tol:
+                    if (
+                        j + 1 < self._chunk_max_iter
+                        and cur_max / h.mean() < self._h_tol
+                    ):
                         break
                 # print(f"Batch {k} Block {i} update H iterates {j+1} iterations.")
                 self.H[k][idx, :] = h
@@ -166,17 +215,23 @@ class INMFOnlineMU(INMFOnlineBase):
                 V_factor_numer = B
                 for j in range(self._chunk_max_iter):
                     V_factor_denom = A @ (WV + self._lambda * self.V[k])
-                    cur_max = self._update_matrix(self.V[k], V_factor_numer, V_factor_denom)
+                    cur_max = self._update_matrix(
+                        self.V[k], V_factor_numer, V_factor_denom
+                    )
                     WV = self.W + self.V[k]
-                    if j + 1 < self._chunk_max_iter and cur_max / self.V[k].mean() < self._v_tol:
+                    if (
+                        j + 1 < self._chunk_max_iter
+                        and cur_max / self.V[k].mean() < self._v_tol
+                    ):
                         break
                 # print(f"Batch {k} Block {i} update V iterates {j+1} iterations.")
                 i += self._chunk_size
 
-
     def _update_H(self):
-        """ Fix W and V, update H """
-        sum_h_err = torch.tensor(0.0, dtype=torch.double, device=self._device_type) # make sure sum_h_err is double to avoid summation errors
+        """Fix W and V, update H"""
+        sum_h_err = torch.tensor(
+            0.0, dtype=torch.double, device=self._device_type
+        )  # make sure sum_h_err is double to avoid summation errors
         for k in range(self._n_batches):
             WV = self.W + self.V[k]
             WVWVT = WV @ WV.T
@@ -184,17 +239,24 @@ class INMFOnlineMU(INMFOnlineBase):
 
             i = 0
             while i < self.H[k].shape[0]:
-                x = self.X[k][i:(i+self._chunk_size), :]
-                h = self.H[k][i:(i+self._chunk_size), :]
+                x = self.X[k][i : (i + self._chunk_size), :]
+                h = self.H[k][i : (i + self._chunk_size), :]
 
                 # Update H
                 xWVT = x @ WV.T
                 h_factor_numer = xWVT
                 for j in range(self._chunk_max_iter):
-                    h_factor_denom = h @ (WVWVT + self._lambda * VVT) if self._lambda > 0.0 else h @ WVWVT
+                    h_factor_denom = (
+                        h @ (WVWVT + self._lambda * VVT)
+                        if self._lambda > 0.0
+                        else h @ WVWVT
+                    )
                     cur_max = self._update_matrix(h, h_factor_numer, h_factor_denom)
-                    if j + 1 < self._chunk_max_iter and cur_max / h.mean() < self._h_tol:
-                            break
+                    if (
+                        j + 1 < self._chunk_max_iter
+                        and cur_max / h.mean() < self._h_tol
+                    ):
+                        break
                 # print(f"Batch {k} Block {i} update H iterates {j+1} iterations.")
 
                 hth = h.T @ h
@@ -202,7 +264,6 @@ class INMFOnlineMU(INMFOnlineBase):
                 i += self._chunk_size
 
         return torch.sqrt(sum_h_err + self._SSX)
-
 
     def fit(
         self,

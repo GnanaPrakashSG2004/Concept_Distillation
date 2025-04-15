@@ -22,7 +22,7 @@ class NMFBatchNnlsBpp(NMFBatchBase):
         n_jobs: int = -1,
         max_iter: int = 500,
     ):
-        assert beta_loss == 2.0 # only work for F norm for now
+        assert beta_loss == 2.0  # only work for F norm for now
 
         super().__init__(
             n_components=n_components,
@@ -41,20 +41,24 @@ class NMFBatchNnlsBpp(NMFBatchBase):
         )
 
         if self._l2_reg_H > 0.0:
-            self._l2_H_I = torch.eye(self.k, dtype=self._tensor_dtype, device=self._device_type) * self._l2_reg_H
+            self._l2_H_I = (
+                torch.eye(self.k, dtype=self._tensor_dtype, device=self._device_type)
+                * self._l2_reg_H
+            )
         if self._l2_reg_W > 0.0:
-            self._l2_W_I = torch.eye(self.k, dtype=self._tensor_dtype, device=self._device_type) * self._l2_reg_W
-
+            self._l2_W_I = (
+                torch.eye(self.k, dtype=self._tensor_dtype, device=self._device_type)
+                * self._l2_reg_W
+            )
 
     def _get_regularization_loss(self, mat, l1_reg, l2_reg):
         res = 0.0
         if l1_reg > 0:
             dim = 0 if mat.shape[0] == self.k else 1
-            res += l1_reg * mat.norm(p=1, dim=dim).norm(p=2)**2
+            res += l1_reg * mat.norm(p=1, dim=dim).norm(p=2) ** 2
         if l2_reg > 0:
-            res += l2_reg * mat.norm(p=2)**2 / 2
+            res += l2_reg * mat.norm(p=2) ** 2 / 2
         return res
-
 
     def _update_H(self):
         if self._l1_reg_H == 0.0 and self._l2_reg_H == 0.0:
@@ -68,7 +72,6 @@ class NMFBatchNnlsBpp(NMFBatchBase):
             n_iter = nnls_bpp(CTC, self._XWT.T, self.H.T, self._device_type)
         # print(f"H n_iter={n_iter}.")
         self._HTH = self.H.T @ self.H
-
 
     def _update_W(self):
         HTX = self.H.T @ self.X
@@ -84,7 +87,6 @@ class NMFBatchNnlsBpp(NMFBatchBase):
         # print(f"W n_iter={n_iter}.")
         self._WWT = self.W @ self.W.T
         self._XWT = self.X @ self.W.T
-
 
     def fit(self, X):
         super().fit(X)

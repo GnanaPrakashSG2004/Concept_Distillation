@@ -31,10 +31,11 @@ class INMFBatchHALS(INMFBatchBase):
             max_iter=max_iter,
         )
 
-        self._zero = torch.tensor(0.0, dtype=self._tensor_dtype, device=self._device_type)
+        self._zero = torch.tensor(
+            0.0, dtype=self._tensor_dtype, device=self._device_type
+        )
         self._hals_tol = hals_tol
         self._hals_max_iter = hals_max_iter
-
 
     def _update_H_V_W(self):
         W_numer = torch.zeros_like(self.W)
@@ -46,19 +47,24 @@ class INMFBatchHALS(INMFBatchBase):
                 cur_max = 0.0
                 for l in range(self._n_components):
                     if self._lambda > 0.0:
-                        numer = self._XWVT[k][:, l] - self.H[k] @ (self._WVWVT[k][:, l] + self._lambda * self._VVT[k][:, l])
+                        numer = self._XWVT[k][:, l] - self.H[k] @ (
+                            self._WVWVT[k][:, l] + self._lambda * self._VVT[k][:, l]
+                        )
                         denom = self._WVWVT[k][l, l] + self._lambda * self._VVT[k][l, l]
                     else:
                         numer = self._XWVT[k][:, l] - self.H[k] @ self._WVWVT[k][:, l]
                         denom = self._WVWVT[k][l, l]
                     h_new = self.H[k][:, l] + numer / denom
                     if torch.isnan(h_new).sum() > 0:
-                        h_new[:] = 0.0 # divide zero error: set h_new to 0
+                        h_new[:] = 0.0  # divide zero error: set h_new to 0
                     else:
                         h_new = h_new.maximum(self._zero)
                     cur_max = max(cur_max, torch.abs(self.H[k][:, l] - h_new).max())
                     self.H[k][:, l] = h_new
-                if i + 1 < self._hals_max_iter and cur_max / self.H[k].mean() < self._hals_tol:
+                if (
+                    i + 1 < self._hals_max_iter
+                    and cur_max / self.H[k].mean() < self._hals_tol
+                ):
                     break
 
             # print(f"H[{k}] iterates {i+1} iterations.")
@@ -71,17 +77,22 @@ class INMFBatchHALS(INMFBatchBase):
             for i in range(self._hals_max_iter):
                 cur_max = 0.0
                 for l in range(self._n_components):
-                    numer = HTX[l, :] - self._HTH[k][l, :] @ (self.W + (1.0 + self._lambda) * self.V[k])
+                    numer = HTX[l, :] - self._HTH[k][l, :] @ (
+                        self.W + (1.0 + self._lambda) * self.V[k]
+                    )
                     denom = (1.0 + self._lambda) * self._HTH[k][l, l]
                     v_new = self.V[k][l, :] + numer / denom
                     if torch.isnan(v_new).sum() > 0:
-                        v_new[:] = 0.0 # divide zero error: set v_new to 0
+                        v_new[:] = 0.0  # divide zero error: set v_new to 0
                     else:
                         v_new = v_new.maximum(self._zero)
                     cur_max = max(cur_max, torch.abs(self.V[k][l, :] - v_new).max())
                     self.V[k][l, :] = v_new
-                if i + 1 < self._hals_max_iter and cur_max / self.V[k].mean() < self._hals_tol:
-                        break
+                if (
+                    i + 1 < self._hals_max_iter
+                    and cur_max / self.V[k].mean() < self._hals_tol
+                ):
+                    break
 
             # print(f"V[{k}] iterates {i+1} iterations.")
 
@@ -90,22 +101,25 @@ class INMFBatchHALS(INMFBatchBase):
                 self._VVT[k] = self.V[k] @ self.V[k].T
 
             # Update W numer and denomer
-            W_numer += (HTX - self._HTH[k] @ self.V[k])
+            W_numer += HTX - self._HTH[k] @ self.V[k]
             W_denom += self._HTH[k]
 
         # Update W
         for i in range(self._hals_max_iter):
             cur_max = 0.0
             for l in range(self._n_components):
-                w_new = self.W[l, :] + (W_numer[l, :] - W_denom[l, :] @ self.W) / W_denom[l, l]
+                w_new = (
+                    self.W[l, :]
+                    + (W_numer[l, :] - W_denom[l, :] @ self.W) / W_denom[l, l]
+                )
                 if torch.isnan(w_new).sum() > 0:
-                    w_new[:] = 0.0 # divide zero error: set w_new to 0
+                    w_new[:] = 0.0  # divide zero error: set w_new to 0
                 else:
                     w_new = w_new.maximum(self._zero)
                 cur_max = max(cur_max, torch.abs(self.W[l, :] - w_new).max())
                 self.W[l, :] = w_new
             if i + 1 < self._hals_max_iter and cur_max / self.W.mean() < self._hals_tol:
-                    break
+                break
 
         # print(f"W iterates {i+1} iterations.")
 
@@ -114,7 +128,6 @@ class INMFBatchHALS(INMFBatchBase):
             WV = self.W + self.V[k]
             self._WVWVT[k] = WV @ WV.T
             self._XWVT[k] = self.X[k] @ WV.T
-
 
     def fit(
         self,

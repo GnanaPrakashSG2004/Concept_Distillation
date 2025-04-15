@@ -32,9 +32,13 @@ class ActivationHook:
         return hook_fn
 
     def move_to_cpu(self, layer_name, finish=False):
-        if self.move_to_cpu_every and (len(self.layer_gpu_indices[layer_name]) == self.move_to_cpu_every or finish):
+        if self.move_to_cpu_every and (
+            len(self.layer_gpu_indices[layer_name]) == self.move_to_cpu_every or finish
+        ):
             for i in self.layer_gpu_indices[layer_name]:
-                self.layer_activations[layer_name][i] = self.layer_activations[layer_name][i].cpu()
+                self.layer_activations[layer_name][i] = self.layer_activations[
+                    layer_name
+                ][i].cpu()
             self.layer_gpu_indices[layer_name] = []
 
     def register_hooks(self, layer_names, layer_modules, post_activation_fn=None):
@@ -59,7 +63,9 @@ class ActivationHook:
     def concatenate_layer_activations(self):
         for name in self.layer_names:
             self.move_to_cpu(name, finish=True)
-            self.layer_activations[name] = torch.cat(self.layer_activations[name], dim=0).cpu()
+            self.layer_activations[name] = torch.cat(
+                self.layer_activations[name], dim=0
+            ).cpu()
 
     def reset_activation_dict(self):
         for name in self.layer_names:

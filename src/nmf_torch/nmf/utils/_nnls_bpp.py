@@ -2,18 +2,20 @@
 
 import numpy as np
 import torch
+
 # import pyximport
 # pyximport.install(setup_args={"script_args" : ["--verbose"]})
 from src.nmf_torch.nmf.cylib.nnls_bpp_utils import _nnls_bpp
 
+
 def nnls_bpp(CTC, CTB, X, device_type) -> int:
     """
-        min ||CX-B||_F^2
-        KKT conditions:
-           1) Y = CTC @ X - CTB
-           2) Y >= 0, X >= 0
-           3) XY = 0
-        Return niter; if niter < 0, nnls_bpp does not converge.
+    min ||CX-B||_F^2
+    KKT conditions:
+       1) Y = CTC @ X - CTB
+       2) Y >= 0, X >= 0
+       3) XY = 0
+    Return niter; if niter < 0, nnls_bpp does not converge.
     """
     # CTC = C.T @ C
     # CTB = C.T @ B
@@ -28,7 +30,6 @@ def nnls_bpp(CTC, CTB, X, device_type) -> int:
         X = X.numpy()
 
     return _nnls_bpp(CTC, CTB, X, device_type)
-
 
     # if device_type == 'cpu':
     #     return _nnls_bpp(CTC, CTB, X, 'cpu')
@@ -55,8 +56,8 @@ if __name__ == "__main__":
     CTB = C.T @ B
 
     st = time.time()
-    n_iters = nnls_bpp(CTC, CTB, X, 'cuda')
-    print('torch nmf Elapsed time:', time.time() - st)
+    n_iters = nnls_bpp(CTC, CTB, X, "cuda")
+    print("torch nmf Elapsed time:", time.time() - st)
     # print('X', X)
 
     from scipy.optimize import nnls
@@ -64,13 +65,16 @@ if __name__ == "__main__":
     st = time.time()
     for i in range(num_samples):
         X2, _ = nnls(C, B[:, i])
-    print('scipy Elapsed time:', time.time() - st)
+    print("scipy Elapsed time:", time.time() - st)
     # print('X2', torch.FloatTensor(X2).unsqueeze(1))
 
-
-    print('Trying with real data')
-    test_concept_weights = np.load('/home/nkondapa/PycharmProjects/ConceptBook/test_concept_weights.npy')
-    test_activations = np.load('/home/nkondapa/PycharmProjects/ConceptBook/test_activations.npy')
+    print("Trying with real data")
+    test_concept_weights = np.load(
+        "/home/nkondapa/PycharmProjects/ConceptBook/test_concept_weights.npy"
+    )
+    test_activations = np.load(
+        "/home/nkondapa/PycharmProjects/ConceptBook/test_activations.npy"
+    )
 
     C = torch.FloatTensor(test_concept_weights)
     B = torch.FloatTensor(test_activations)
@@ -80,8 +84,8 @@ if __name__ == "__main__":
     CTC = C.T @ C
     CTB = C.T @ B
     print(time.time() - st)
-    n_iters = nnls_bpp(CTC, CTB, X, 'cpu')
-    print('torch nmf Elapsed time:', time.time() - st)
+    n_iters = nnls_bpp(CTC, CTB, X, "cpu")
+    print("torch nmf Elapsed time:", time.time() - st)
     print(n_iters)
     st = time.time()
     x2s = []
@@ -90,7 +94,7 @@ if __name__ == "__main__":
         X2, rnorm = nnls(C, B[:, i])
         x2s.append(X2)
         rnorms.append(rnorm)
-    print('scipy Elapsed time:', time.time() - st)
+    print("scipy Elapsed time:", time.time() - st)
     X2 = torch.FloatTensor(np.stack(x2s)).T
     rnorms = np.array(rnorms)
 
@@ -99,7 +103,6 @@ if __name__ == "__main__":
 
     rnormx1 = torch.norm(C @ X - B, dim=0)
     rnormx2 = torch.norm(C @ X2 - B, dim=0)
-
 
     # print('rnorms', rnorms[:10])
     # print('rnormx1', rnormx1[:10])

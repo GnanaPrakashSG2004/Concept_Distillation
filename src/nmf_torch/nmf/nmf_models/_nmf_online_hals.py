@@ -45,18 +45,25 @@ class NMFOnlineHALS(NMFOnlineBase):
         self._chunk_max_iter = chunk_max_iter
         self._h_tol = h_tol
         self._w_tol = w_tol
-        self._zero = torch.tensor(0.0, dtype=self._tensor_dtype, device=self._device_type)
-
+        self._zero = torch.tensor(
+            0.0, dtype=self._tensor_dtype, device=self._device_type
+        )
 
     def _update_one_pass(self, l1_reg_W, l2_reg_W):
         indices = torch.randperm(self.X.shape[0], device=self._device_type)
-        A = torch.zeros((self.k, self.k), dtype=self._tensor_dtype, device=self._device_type)
-        B = torch.zeros((self.k, self.X.shape[1]), dtype=self._tensor_dtype, device=self._device_type)
+        A = torch.zeros(
+            (self.k, self.k), dtype=self._tensor_dtype, device=self._device_type
+        )
+        B = torch.zeros(
+            (self.k, self.X.shape[1]),
+            dtype=self._tensor_dtype,
+            device=self._device_type,
+        )
 
         i = 0
         num_processed = 0
         while i < indices.shape[0]:
-            idx = indices[i:(i+self._chunk_size)]
+            idx = indices[i : (i + self._chunk_size)]
             cur_chunksize = idx.shape[0]
             x = self.X[idx, :]
             h = self.H[idx, :]
@@ -78,14 +85,14 @@ class NMFOnlineHALS(NMFOnlineBase):
                     else:
                         hvec = h[:, k] + numer / WWT[k, k]
                     if torch.isnan(hvec).sum() > 0:
-                        hvec[:] = 0.0 # divide zero error: set hvec to 0
+                        hvec[:] = 0.0  # divide zero error: set hvec to 0
                     else:
                         hvec = hvec.maximum(self._zero)
                     cur_max = max(cur_max, torch.abs(h[:, k] - hvec).max())
                     h[:, k] = hvec
-                
+
                 if j + 1 < self._chunk_max_iter and cur_max / h.mean() < self._h_tol:
-                            break
+                    break
 
             # print(f"Block {i} update H iterates {j+1} iterations.")
             self.H[idx, :] = h
@@ -117,27 +124,31 @@ class NMFOnlineHALS(NMFOnlineBase):
                     else:
                         w_new = self.W[k, :] + numer / A[k, k]
                     if torch.isnan(w_new).sum() > 0:
-                        w_new[:] = 0.0 # divide zero error: set w_new to 0
+                        w_new[:] = 0.0  # divide zero error: set w_new to 0
                     else:
                         w_new = w_new.maximum(self._zero)
                     cur_max = max(cur_max, torch.abs(self.W[k, :] - w_new).max())
                     self.W[k, :] = w_new
-                
-                if j + 1 < self._chunk_max_iter and cur_max / self.W.mean() < self._w_tol:
+
+                if (
+                    j + 1 < self._chunk_max_iter
+                    and cur_max / self.W.mean() < self._w_tol
+                ):
                     break
 
             # print(f"Block {i} update W iterates {j+1} iterations.")
             i += self._chunk_size
 
-
     def _update_H(self):
         i = 0
         WWT = self.W @ self.W.T
 
-        sum_h_err = torch.tensor(0.0, dtype=torch.double, device=self._device_type) # make sure sum_h_err is double to avoid summation errors
+        sum_h_err = torch.tensor(
+            0.0, dtype=torch.double, device=self._device_type
+        )  # make sure sum_h_err is double to avoid summation errors
         while i < self.H.shape[0]:
-            x = self.X[i:(i+self._chunk_size), :]
-            h = self.H[i:(i+self._chunk_size), :]
+            x = self.X[i : (i + self._chunk_size), :]
+            h = self.H[i : (i + self._chunk_size), :]
 
             xWT = x @ self.W.T
             for j in range(self._chunk_max_iter):
@@ -153,7 +164,7 @@ class NMFOnlineHALS(NMFOnlineBase):
                     else:
                         hvec = h[:, k] + numer / WWT[k, k]
                     if torch.isnan(hvec).sum() > 0:
-                        hvec[:] = 0.0 # divide zero error: set hvec to 0
+                        hvec[:] = 0.0  # divide zero error: set hvec to 0
                     else:
                         hvec = hvec.maximum(self._zero)
                     cur_max = max(cur_max, torch.abs(h[:, k] - hvec).max())
@@ -169,12 +180,20 @@ class NMFOnlineHALS(NMFOnlineBase):
 
             i += self._chunk_size
 
-        return torch.sqrt(2.0 * (sum_h_err + self._X_SS_half + self._get_regularization_loss(self.W, self._l1_reg_W, self._l2_reg_W)))
-
+        return torch.sqrt(
+            2.0
+            * (
+                sum_h_err
+                + self._X_SS_half
+                + self._get_regularization_loss(self.W, self._l1_reg_W, self._l2_reg_W)
+            )
+        )
 
     def fit(self, X):
         super().fit(X)
-        assert self._beta==2, "Cannot perform online update when beta is not equal to 2!"
+        assert (
+            self._beta == 2
+        ), "Cannot perform online update when beta is not equal to 2!"
 
         # Online update.
         self._chunk_size = min(self.X.shape[0], self._chunk_size)

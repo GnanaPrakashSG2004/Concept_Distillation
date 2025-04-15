@@ -5,15 +5,17 @@ from numpy.testing import assert_almost_equal
 
 class TestKMeans:
 
-    data = np.array([[0.2, 0.1, 0.8, 0.9, 0.5], 
-                     [0.2, 0.1, 0.8, 0.9, 0.5]])
+    data = np.array([[0.2, 0.1, 0.8, 0.9, 0.5], [0.2, 0.1, 0.8, 0.9, 0.5]])
 
-    W = np.array([[0.15, 0.85, 0.5], 
-                  [0.15, 0.85, 0.5]])
+    W = np.array([[0.15, 0.85, 0.5], [0.15, 0.85, 0.5]])
 
-    H = np.array([[1.0, 1.0, 0.0, 0.0, 0.0], 
-                  [0.0, 0.0, 1.0, 1.0, 0.0],
-                  [0.0, 0.0, 0.0, 0.0, 1.0]])
+    H = np.array(
+        [
+            [1.0, 1.0, 0.0, 0.0, 0.0],
+            [0.0, 0.0, 1.0, 1.0, 0.0],
+            [0.0, 0.0, 0.0, 0.0, 1.0],
+        ]
+    )
 
     def test_compute_w(self):
         mdl = Kmeans(self.data, num_bases=3)
@@ -32,8 +34,7 @@ class TestKMeans:
 
         # init W to some reasonable values, otherwise the random init can
         # lead to a changed order of basis vectors.
-        mdl.W = np.array([[0.1, 0.7, 0.4],
-                          [0.3, 0.6, 0.5]]) 
+        mdl.W = np.array([[0.1, 0.7, 0.4], [0.3, 0.6, 0.5]])
         mdl.factorize(niter=10)
         assert_almost_equal(mdl.H, self.H, decimal=2)
         assert_almost_equal(mdl.W, self.W, decimal=2)

@@ -72,3 +72,4 @@ lab/
 checkpoints/
 outputs/
 wandb/
+temp.*

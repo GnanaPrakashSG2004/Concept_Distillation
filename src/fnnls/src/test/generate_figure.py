@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 # coding: utf-8
 
-#Code to generate the figure from the paper
+# Code to generate the figure from the paper
 
 import pytest
 
@@ -14,14 +14,21 @@ from time import time
 from fnnls.fnnls import fnnls
 
 
-
-class nnls_comparison():
+class nnls_comparison:
 
     def __init__(self):
 
         return
 
-    def test(self, repetitions, dimensions, optimizers, names, generator=np.random.rand, verbose=True):
+    def test(
+        self,
+        repetitions,
+        dimensions,
+        optimizers,
+        names,
+        generator=np.random.rand,
+        verbose=True,
+    ):
         """
         Measures the speed of each optimizer at each dimensions,
         averaged over repetitions
@@ -30,10 +37,10 @@ class nnls_comparison():
         ----------
         repetitions: int
             The number of times to run at optimizer at each dimensions
-            for precision. 
+            for precision.
 
         dimensions: numpy array
-            A list of dimensions of matrix A and vector x to use 
+            A list of dimensions of matrix A and vector x to use
             for testing.
 
         optimizers: list
@@ -52,8 +59,10 @@ class nnls_comparison():
 
         for dim in dimensions:
 
-            matrices = [generator(dim*10, dim) for _ in range(repetitions)]
-            vectors = [generator(dim*10, 1).reshape((dim*10)) for _ in range(repetitions)]
+            matrices = [generator(dim * 10, dim) for _ in range(repetitions)]
+            vectors = [
+                generator(dim * 10, 1).reshape((dim * 10)) for _ in range(repetitions)
+            ]
 
             for index, optimizer in enumerate(optimizers):
 
@@ -63,25 +72,25 @@ class nnls_comparison():
 
                 for i in range(repetitions):
 
-                    #define matrix A and vector x
-                    #------------------------------
+                    # define matrix A and vector x
+                    # ------------------------------
 
                     Z = matrices[i]
                     x = vectors[i]
 
-                    #Measure the speed of running the optimizer
+                    # Measure the speed of running the optimizer
                     start = time()
 
                     [d, res] = optimizer(Z, x)
 
                     end = time()
-                
+
                     time_total += end - start
                     res_total += res
                     ds.append(d)
 
-                #Print and store results
-                #-----------------------
+                # Print and store results
+                # -----------------------
                 if verbose:
                     print(dim)
                     print(names[index] + ": " + str(time_total))
@@ -109,25 +118,24 @@ class nnls_comparison():
         Plots the time complexities of each optimizer
 
         """
-        #Plot the times for nnls
-        #-----------------------
+        # Plot the times for nnls
+        # -----------------------
         for nnls_time in self.nnls_times:
             plt.plot(self.dimensions, nnls_time)
 
         plt.xlabel("Dimension")
-        plt.ylabel("time (s) for " +  str(self.repetitions) + " runs")
+        plt.ylabel("time (s) for " + str(self.repetitions) + " runs")
         plt.legend(self.names)
 
         plt.show()
 
     def plot_residuals(self):
-
         """
         Plots the residuals of each optimizer
 
         """
-        #Plot the times for nnls
-        #-----------------------
+        # Plot the times for nnls
+        # -----------------------
         for nnls_res in self.nnls_res:
             plt.plot(self.dimensions, [i / self.repetitions for i in nnls_res])
 
@@ -151,50 +159,67 @@ class nnls_comparison():
 
             avg_diff = 0
             for j in range(len(residuals_1)):
-                avg_diff += np.linalg.norm(residuals_1[j] - residuals_2[j]) / np.linalg.norm(residuals_1[j])
+                avg_diff += np.linalg.norm(
+                    residuals_1[j] - residuals_2[j]
+                ) / np.linalg.norm(residuals_1[j])
             differences.append(avg_diff / len(residuals_1))
-            
-        return differences
 
+        return differences
 
 
 sparsity = 0.01
 SPARSE = False
 
-#Declare generator, either sparse or dense
+# Declare generator, either sparse or dense
 generator_sparse = lambda m, n: sparse.random(m, n, sparsity).toarray()
 generator_gaussian = np.random.randn
 
 
-#Declare parameters for testing
+# Declare parameters for testing
 repetitions = 100
 dimensions = np.arange(10, 411, 40)
 optimizers = [optimize.nnls, fnnls]
 names = ["scipy.optimize.nnls", "fnnls"]
 
-#run comparison tests
+# run comparison tests
 testing_dense = nnls_comparison()
-testing_dense.test(repetitions, dimensions, optimizers, names, generator=generator_gaussian, verbose=True)
-#run comparison tests
+testing_dense.test(
+    repetitions,
+    dimensions,
+    optimizers,
+    names,
+    generator=generator_gaussian,
+    verbose=True,
+)
+# run comparison tests
 testing_sparse = nnls_comparison()
-testing_sparse.test(repetitions, dimensions, optimizers, names, generator=generator_sparse, verbose=True)
+testing_sparse.test(
+    repetitions, dimensions, optimizers, names, generator=generator_sparse, verbose=True
+)
 
 times_dense = testing_dense.nnls_times
 times_sparse = testing_sparse.nnls_times
 
-#Calcualte differences between residuals, should be VERY small
+# Calcualte differences between residuals, should be VERY small
 differences = testing_dense.diff_residuals()
 print("Array of difference between solutions: {}".format(differences))
 differences = testing_sparse.diff_residuals()
 print("Array of difference between solutions: {}".format(differences))
 
-plt.plot(dimensions, times_dense[0], 'C0--')
-plt.plot(dimensions, times_dense[1], 'C0-')
-plt.plot(dimensions, times_sparse[0], 'C1--')
-plt.plot(dimensions, times_sparse[1], 'C1-')
+plt.plot(dimensions, times_dense[0], "C0--")
+plt.plot(dimensions, times_dense[1], "C0-")
+plt.plot(dimensions, times_sparse[0], "C1--")
+plt.plot(dimensions, times_sparse[1], "C1-")
 
 plt.xlabel("Dimension")
-plt.ylabel("Time (s) for " +  str(repetitions) + " runs")
-plt.legend(["scipy.optimize.nnls (dense)", "fnnls (dense)", "scipy.optimize.nnls (sparse)", "fnnls (sparse)"])
+plt.ylabel("Time (s) for " + str(repetitions) + " runs")
+plt.legend(
+    [
+        "scipy.optimize.nnls (dense)",
+        "fnnls (dense)",
+        "scipy.optimize.nnls (sparse)",
+        "fnnls (sparse)",
+    ]
+)
 
 plt.show()

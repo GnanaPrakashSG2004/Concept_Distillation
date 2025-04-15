@@ -14,12 +14,11 @@ class NMFBatchMU(NMFBatchBase):
             denom_mat += l2_reg * mat
 
     def _update_matrix(self, mat, numer, denom):
-        mat *= (numer / denom)
+        mat *= numer / denom
         mat[denom < self._epsilon] = 0.0
 
     def _get_HW(self):
         return self.H @ self.W
-
 
     def _update_H(self):
         if self._beta == 2:
@@ -31,12 +30,13 @@ class NMFBatchMU(NMFBatchBase):
             H_factor_numer = (self.X * HW_pow) @ self.W.T
             H_factor_denom = (HW_pow * HW) @ self.W.T
 
-        self._add_regularization_terms(self.H, H_factor_numer, H_factor_denom, self._l1_reg_H, self._l2_reg_H)
+        self._add_regularization_terms(
+            self.H, H_factor_numer, H_factor_denom, self._l1_reg_H, self._l2_reg_H
+        )
         self._update_matrix(self.H, H_factor_numer, H_factor_denom)
 
         if self._beta == 2:
             self._HTH = self.H.T @ self.H
-
 
     def _update_W(self):
         if self._beta == 2:
@@ -48,13 +48,14 @@ class NMFBatchMU(NMFBatchBase):
             W_factor_numer = self.H.T @ (self.X * HW_pow)
             W_factor_denom = self.H.T @ (HW_pow * HW)
 
-        self._add_regularization_terms(self.W, W_factor_numer, W_factor_denom, self._l1_reg_W, self._l2_reg_W)
+        self._add_regularization_terms(
+            self.W, W_factor_numer, W_factor_denom, self._l1_reg_W, self._l2_reg_W
+        )
         self._update_matrix(self.W, W_factor_numer, W_factor_denom)
 
         if self._beta == 2:
             self._WWT = self.W @ self.W.T
             self._XWT = self.X @ self.W.T
-
 
     def fit(self, X, verbose=True):
         super().fit(X)

@@ -9,4 +9,3 @@ __email__ = "jvendrow@gmail.com"
 
 __license__ = "MIT"
 __copyright__ = "Copyright (c) 2020, Joshua Vendrow"
-

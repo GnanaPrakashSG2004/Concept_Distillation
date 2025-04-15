@@ -10,19 +10,23 @@ import tqdm
 import matplotlib.pyplot as plt
 import json
 
-sys.path.append('../')
+sys.path.append("../")
 from datasets.imagenet import imagenet, imagenet_modified
 from datasets.nabirds import NABirds
 from datasets.utils.dataset_loader import get_dataset
 from src.utils.model_loader import load_model
 
-def load_or_run_evaluation(eval_path, dataset, split, model_name, ckpt_path, data_root='./data'):
+
+def load_or_run_evaluation(
+    eval_path, dataset, split, model_name, ckpt_path, data_root="./data"
+):
     try:
-        with open(eval_path, 'r') as f:
+        with open(eval_path, "r") as f:
             out = json.load(f)
     except FileNotFoundError:
         out = main(model_name, dataset, split, ckpt_path, data_root=data_root)
     return out
+
 
 def eval_model(model, dataloader, device, criterion, out_transform=None):
     model.eval()
@@ -35,10 +39,10 @@ def eval_model(model, dataloader, device, criterion, out_transform=None):
     probs = {}
     labels_all = []
     for data in tqdm.tqdm(dataloader):
-        inputs, labels, paths = data['input'], data['target'], data['path']
+        inputs, labels, paths = data["input"], data["target"], data["path"]
         inputs = inputs.to(device)
         labels = labels.to(device)
-        paths = [path.replace(root, '') for path in paths]
+        paths = [path.replace(root, "") for path in paths]
 
         # plt.figure()
         # plt.imshow(inputs[1].permute(1, 2, 0).cpu().numpy())
@@ -72,28 +76,35 @@ def eval_model(model, dataloader, device, criterion, out_transform=None):
     epoch_loss = running_loss / len(dataloader.dataset)
     epoch_acc = running_corrects.double() / len(dataloader.dataset)
 
-    print('Loss: {:.4f} Acc: {:.4f}'.format(epoch_loss, epoch_acc))
+    print("Loss: {:.4f} Acc: {:.4f}".format(epoch_loss, epoch_acc))
 
     sorted_class_acc = {}
     sorted_keys = sorted(class_acc.keys())
     for k in sorted_keys:
         v = class_acc[k]
         sorted_class_acc[k] = v
-        print(f'Class {k} acc: {v[0] / v[1]}')
+        print(f"Class {k} acc: {v[0] / v[1]}")
 
-    return epoch_loss, epoch_acc.item(), sorted_class_acc, predictions, probs, labels_all
+    return (
+        epoch_loss,
+        epoch_acc.item(),
+        sorted_class_acc,
+        predictions,
+        probs,
+        labels_all,
+    )
 
 
 def compute_stats(model_name, eval_dict):
     # with open(f'./model_evaluation/{dataset}/{model_name}_probs_{split}.pth', 'rb') as f:
     #     prob_dict = torch.load(f)
 
-    labels = eval_dict['labels']
+    labels = eval_dict["labels"]
     labels = np.array(labels)
     # probs = np.stack(list(prob_dict.values()))
 
-    os.makedirs(f'visualizations/{model_name}/confusion_matrices/', exist_ok=True)
-    class_pred = np.array(list(eval_dict['predictions'].values()))
+    os.makedirs(f"visualizations/{model_name}/confusion_matrices/", exist_ok=True)
+    class_pred = np.array(list(eval_dict["predictions"].values()))
 
     stats = {}
     for target_class in range(len(np.unique(labels))):
@@ -110,7 +121,7 @@ def compute_stats(model_name, eval_dict):
 
         # class_probs = probs[class_mask]
 
-        stats[target_class] = {'prec': prec, 'rec': rec, 'acc': acc, 'f1': f_score}
+        stats[target_class] = {"prec": prec, "rec": rec, "acc": acc, "f1": f_score}
 
     return stats
 
@@ -126,11 +137,21 @@ def convert_predictions_to_label_groups(predictions):
     return label_dict
 
 
-def main(model_name, dataset_name, split='val', ckpt_path=None, model_type=None, post_model_load=None,
-         out_transform=None, save_root='model_evaluation', data_root='../data', modifier_params=None):
+def main(
+    model_name,
+    dataset_name,
+    split="val",
+    ckpt_path=None,
+    model_type=None,
+    post_model_load=None,
+    out_transform=None,
+    save_root="model_evaluation",
+    data_root="../data",
+    modifier_params=None,
+):
     model_dict = load_model(model_name, ckpt_path, model_type=model_type)
-    test_transform = model_dict['test_transform']
-    model = model_dict['model']
+    test_transform = model_dict["test_transform"]
+    model = model_dict["model"]
     if post_model_load is not None:
         model = post_model_load(model)
 
@@ -138,65 +159,92 @@ def main(model_name, dataset_name, split='val', ckpt_path=None, model_type=None,
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = model.eval().to(device)
 
-    if dataset_name == 'imagenet':
-        dataset = imagenet_modified(split, test_transform, os.path.join(data_root, 'imagenet'))
-    elif dataset_name == 'nabirds':
-        dataset = NABirds(os.path.join(data_root, 'nabirds'), train=False, download=False, transform=test_transform)
-    elif dataset_name == 'nabirds_modified':
-        dparams = model_dict['lightning_model'].dataset_params
+    if dataset_name == "imagenet":
+        dataset = imagenet_modified(
+            split, test_transform, os.path.join(data_root, "imagenet")
+        )
+    elif dataset_name == "nabirds":
+        dataset = NABirds(
+            os.path.join(data_root, "nabirds"),
+            train=False,
+            download=False,
+            transform=test_transform,
+        )
+    elif dataset_name == "nabirds_modified":
+        dparams = model_dict["lightning_model"].dataset_params
         if modifier_params is not None:
-            dparams['transform_params'].update(modifier_params)
+            dparams["transform_params"].update(modifier_params)
         dataset_dict = get_dataset(params=dparams)
-        dataset = dataset_dict[f'{split}_dataset']
-    elif dataset_name == 'nabirds_stanford_cars':
-        dparams = model_dict['lightning_model'].dataset_params
-        dparams['dataset_name'] = 'nabirds_stanford_cars'
-        dparams['transform_params']['use_test_transform_for_train'] = True
-        dparams['transform_params']['dataset_name'] = 'nabirds_stanford_cars'
+        dataset = dataset_dict[f"{split}_dataset"]
+    elif dataset_name == "nabirds_stanford_cars":
+        dparams = model_dict["lightning_model"].dataset_params
+        dparams["dataset_name"] = "nabirds_stanford_cars"
+        dparams["transform_params"]["use_test_transform_for_train"] = True
+        dparams["transform_params"]["dataset_name"] = "nabirds_stanford_cars"
         dataset_dict = get_dataset(params=dparams)
-        dataset = dataset_dict[f'{split}_dataset']
+        dataset = dataset_dict[f"{split}_dataset"]
     else:
-        raise ValueError(f'Unknown dataset_name: {dataset_name}')
+        raise ValueError(f"Unknown dataset_name: {dataset_name}")
 
-    dataloader = torch.utils.data.DataLoader(dataset, batch_size=512, shuffle=False, num_workers=8)
-    loss, acc, class_acc, predictions, probs, labels = eval_model(model, dataloader, device, criterion,
-                                                                  out_transform=out_transform)
+    dataloader = torch.utils.data.DataLoader(
+        dataset, batch_size=512, shuffle=False, num_workers=8
+    )
+    loss, acc, class_acc, predictions, probs, labels = eval_model(
+        model, dataloader, device, criterion, out_transform=out_transform
+    )
 
-    out = {'loss': loss, 'acc': acc, 'class_acc': class_acc, 'predictions': predictions, 'labels': labels}
-    os.makedirs(f'{save_root}/{dataset_name}', exist_ok=True)
-    with open(f'{save_root}/{dataset_name}/{model_name}_{split}.json', 'w') as f:
+    out = {
+        "loss": loss,
+        "acc": acc,
+        "class_acc": class_acc,
+        "predictions": predictions,
+        "labels": labels,
+    }
+    os.makedirs(f"{save_root}/{dataset_name}", exist_ok=True)
+    with open(f"{save_root}/{dataset_name}/{model_name}_{split}.json", "w") as f:
         json.dump(out, f, indent=2)
 
-    with open(f'{save_root}/{dataset_name}/{model_name}_probs_{split}.pth', 'wb') as f:
+    with open(f"{save_root}/{dataset_name}/{model_name}_probs_{split}.pth", "wb") as f:
         torch.save(probs, f)
 
     stats = compute_stats(model_name, out)
-    with open(f'{save_root}/{dataset_name}/{model_name}_stats_{split}.json', 'w') as f:
+    with open(f"{save_root}/{dataset_name}/{model_name}_stats_{split}.json", "w") as f:
         json.dump(stats, f)
 
     return out
 
 
-def compute_stats_main(model_name, dataset_name, split='val', ckpt_path=None, model_type=None, post_model_load=None,
-                       out_transform=None, save_root='model_evaluation', data_root='../data'):
-    with open(f'{save_root}/{dataset_name}/{model_name}_{split}.json', 'r') as f:
+def compute_stats_main(
+    model_name,
+    dataset_name,
+    split="val",
+    ckpt_path=None,
+    model_type=None,
+    post_model_load=None,
+    out_transform=None,
+    save_root="model_evaluation",
+    data_root="../data",
+):
+    with open(f"{save_root}/{dataset_name}/{model_name}_{split}.json", "r") as f:
         out = json.load(f)
 
     stats = compute_stats(model_name, out)
-    with open(f'./{save_root}/{dataset_name}/{model_name}_stats_{split}.json', 'w') as f:
+    with open(
+        f"./{save_root}/{dataset_name}/{model_name}_stats_{split}.json", "w"
+    ) as f:
         json.dump(stats, f)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
 
-    model_name = 'resnet50.a3_in1k'
+    model_name = "resnet50.a3_in1k"
     main(
         model_name=model_name,
-        dataset_name='imagenet',
-        split='val',
+        dataset_name="imagenet",
+        split="val",
         ckpt_path=None,
         save_root="/scratch/swayam/rsvc-exps/model_evaluation",
-        data_root="/scratch/swayam/imagenet_data"
+        data_root="/scratch/swayam/imagenet_data",
     )
     # for model_name in ['resnet18.a2_in1k', 'resnet50.a2_in1k',
     #                    'vit_small_patch16_224.augreg_in21k_ft_in1k',

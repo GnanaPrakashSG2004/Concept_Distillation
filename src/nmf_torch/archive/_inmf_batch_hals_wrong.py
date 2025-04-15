@@ -3,16 +3,17 @@ import torch
 from ._inmf_base import INMFBase
 from typing import List, Union
 
+
 class INMFBatchHALSWrong(INMFBase):
     def __init__(
         self,
         n_components: int,
-        lam: float = 5.,
-        init: str = 'random',
+        lam: float = 5.0,
+        init: str = "random",
         tol: float = 1e-4,
         random_state: int = 0,
-        fp_precision: Union[str, torch.dtype] = 'float',
-        device_type: str = 'cpu',
+        fp_precision: Union[str, torch.dtype] = "float",
+        device_type: str = "cpu",
         max_iter: int = 200,
     ):
         super().__init__(
@@ -26,8 +27,9 @@ class INMFBatchHALSWrong(INMFBase):
         )
 
         self._max_iter = max_iter
-        self._zero = torch.tensor(0.0, dtype=self._tensor_dtype, device=self._device_type)
-
+        self._zero = torch.tensor(
+            0.0, dtype=self._tensor_dtype, device=self._device_type
+        )
 
     def _update_H_V_W(self):
         W_numer = torch.zeros_like(self.W)
@@ -39,11 +41,13 @@ class INMFBatchHALSWrong(INMFBase):
                 numer = self._XWVT[k][:, l] - self.H[k] @ self._WVWVT[k][:, l]
                 if self._lambda > 0.0:
                     denom = self._WVWVT[k][l, l] + self._lambda * self._VVT[k][l, l]
-                    h_new = self.H[k][:, l] * (self._WVWVT[k][l, l] / denom) + numer / denom
+                    h_new = (
+                        self.H[k][:, l] * (self._WVWVT[k][l, l] / denom) + numer / denom
+                    )
                 else:
                     h_new = self.H[k][:, l] + numer / self._WVWVT[k][l, l]
                 if torch.isnan(h_new).sum() > 0:
-                    h_new[:] = 0.0 # divide zero error: set h_new to 0
+                    h_new[:] = 0.0  # divide zero error: set h_new to 0
                 else:
                     h_new = h_new.maximum(self._zero)
                 self.H[k][:, l] = h_new
@@ -55,9 +59,11 @@ class INMFBatchHALSWrong(INMFBase):
             for l in range(self._n_components):
                 numer = HTX[l, :] - self._HTH[k][l, :] @ (self.W + self.V[k])
                 denom = 1.0 + self._lambda
-                v_new = self.V[k][l, :] * (1.0 / denom) + numer / (denom * self._HTH[k][l, l])
+                v_new = self.V[k][l, :] * (1.0 / denom) + numer / (
+                    denom * self._HTH[k][l, l]
+                )
                 if torch.isnan(v_new).sum() > 0:
-                    v_new[:] = 0.0 # divide zero error: set v_new to 0
+                    v_new[:] = 0.0  # divide zero error: set v_new to 0
                 else:
                     v_new = v_new.maximum(self._zero)
                 self.V[k][l, :] = v_new
@@ -66,14 +72,16 @@ class INMFBatchHALSWrong(INMFBase):
                 self._VVT[k] = self.V[k] @ self.V[k].T
 
             # Update W numer and denomer
-            W_numer += (HTX - self._HTH[k] @ self.V[k])
+            W_numer += HTX - self._HTH[k] @ self.V[k]
             W_denom += self._HTH[k]
 
         # Update W
         for l in range(self._n_components):
-            w_new = self.W[l, :] + (W_numer[l, :] - W_denom[l, :] @ self.W) / W_denom[l, l]
+            w_new = (
+                self.W[l, :] + (W_numer[l, :] - W_denom[l, :] @ self.W) / W_denom[l, l]
+            )
             if torch.isnan(w_new).sum() > 0:
-                w_new[:] = 0.0 # divide zero error: set w_new to 0
+                w_new[:] = 0.0  # divide zero error: set w_new to 0
             else:
                 w_new = w_new.maximum(self._zero)
             self.W[l, :] = w_new
@@ -82,7 +90,6 @@ class INMFBatchHALSWrong(INMFBase):
             WV = self.W + self.V[k]
             self._WVWVT[k] = WV @ WV.T
             self._XWVT[k] = self.X[k] @ WV.T
-
 
     def fit(
         self,
@@ -106,7 +113,6 @@ class INMFBatchHALSWrong(INMFBase):
 
         self.num_iters = self._max_iter
         print(f"    Not converged after {self.num_iters} iteration(s).")
-
 
     def fit_transform(
         self,

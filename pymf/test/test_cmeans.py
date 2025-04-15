@@ -4,14 +4,11 @@ import numpy as np
 
 class TestCMeans:
 
-    data = np.array([[0.5, 0.1, 0.9], 
-                     [0.5, 0.9, 0.1]])
+    data = np.array([[0.5, 0.1, 0.9], [0.5, 0.9, 0.1]])
 
-    W = np.array([[0.757, 0.242], 
-                  [0.242, 0.757]])
+    W = np.array([[0.757, 0.242], [0.242, 0.757]])
 
-    H = np.array([[0.5, 0.02, 0.98], 
-                  [0.5, 0.98, 0.02]])
+    H = np.array([[0.5, 0.02, 0.98], [0.5, 0.98, 0.02]])
 
     def test_compute_w(self):
         mdl = Cmeans(self.data, num_bases=2)

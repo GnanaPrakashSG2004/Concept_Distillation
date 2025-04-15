@@ -2,8 +2,23 @@ import numpy as np
 import torch
 from typing import List, Union, Tuple, Optional
 
-from .nmf_models import NMFBatchMU, NMFBatchHALS, NMFBatchNnlsBpp, NMFOnlineMU, NMFOnlineHALS, NMFOnlineNnlsBpp
-from .inmf_models import INMFBatchHALS, INMFBatchMU, INMFBatchNnlsBpp, INMFOnlineHALS, INMFOnlineMU, INMFOnlineNnlsBpp
+from .nmf_models import (
+    NMFBatchMU,
+    NMFBatchHALS,
+    NMFBatchNnlsBpp,
+    NMFOnlineMU,
+    NMFOnlineHALS,
+    NMFOnlineNnlsBpp,
+)
+from .inmf_models import (
+    INMFBatchHALS,
+    INMFBatchMU,
+    INMFBatchNnlsBpp,
+    INMFOnlineHALS,
+    INMFOnlineMU,
+    INMFOnlineNnlsBpp,
+)
+
 
 def run_nmf(
     X: Union[np.array, torch.tensor],
@@ -133,67 +148,82 @@ def run_nmf(
     >>> H, W, err = run_nmf(X, n_components=20)
     >>> H, W, err = run_nmf(X, n_components=20, init='random', algo='mu', mode='online')
     """
-    if beta_loss == 'frobenius':
+    if beta_loss == "frobenius":
         beta_loss = 2
-    elif beta_loss == 'kullback-leibler':
+    elif beta_loss == "kullback-leibler":
         beta_loss = 1
-    elif beta_loss == 'itakura-saito':
+    elif beta_loss == "itakura-saito":
         beta_loss = 0
     elif not (isinstance(beta_loss, int) or isinstance(beta_loss, float)):
-        raise ValueError("beta_loss must be a valid value: either from ['frobenius', 'kullback-leibler', 'itakura-saito'], or a numeric value.")
+        raise ValueError(
+            "beta_loss must be a valid value: either from ['frobenius', 'kullback-leibler', 'itakura-saito'], or a numeric value."
+        )
 
-    device_type = 'cpu'
+    device_type = "cpu"
     if use_gpu:
         if torch.cuda.is_available():
-            device_type = 'cuda'
+            device_type = "cuda"
             print("Use GPU mode.")
         else:
             print("CUDA is not available on your machine. Use CPU mode instead.")
 
-    if algo not in {'mu', 'hals', 'halsvar', 'bpp'}:
-        raise ValueError("Parameter algo must be a valid value from ['mu', 'hals', 'halsvar', 'bpp']!")
-    if mode not in {'batch', 'online'}:
-        raise ValueError("Parameter mode must be a valid value from ['batch', 'online']!")
-    if beta_loss != 2 and mode == 'online':
-        print("Cannot perform online update when beta not equal to 2. Switch to batch update method.")
-        mode = 'batch'
+    if algo not in {"mu", "hals", "halsvar", "bpp"}:
+        raise ValueError(
+            "Parameter algo must be a valid value from ['mu', 'hals', 'halsvar', 'bpp']!"
+        )
+    if mode not in {"batch", "online"}:
+        raise ValueError(
+            "Parameter mode must be a valid value from ['batch', 'online']!"
+        )
+    if beta_loss != 2 and mode == "online":
+        print(
+            "Cannot perform online update when beta not equal to 2. Switch to batch update method."
+        )
+        mode = "batch"
 
-    if algo == 'hals':
+    if algo == "hals":
         batch_hals_max_iter = 1
 
     model_class = None
-    kwargs = {'alpha_W': alpha_W, 'l1_ratio_W': l1_ratio_W, 'alpha_H': alpha_H, 'l1_ratio_H': l1_ratio_H, 'fp_precision': fp_precision, 'device_type': device_type}
+    kwargs = {
+        "alpha_W": alpha_W,
+        "l1_ratio_W": l1_ratio_W,
+        "alpha_H": alpha_H,
+        "l1_ratio_H": l1_ratio_H,
+        "fp_precision": fp_precision,
+        "device_type": device_type,
+    }
 
-    if mode == 'batch':
-        kwargs['max_iter'] = batch_max_iter
-        if algo == 'mu':
+    if mode == "batch":
+        kwargs["max_iter"] = batch_max_iter
+        if algo == "mu":
             model_class = NMFBatchMU
-        elif algo == 'hals' or algo == 'halsvar':
+        elif algo == "hals" or algo == "halsvar":
             model_class = NMFBatchHALS
-            kwargs['hals_tol'] = batch_hals_tol
-            kwargs['hals_max_iter'] = batch_hals_max_iter
+            kwargs["hals_tol"] = batch_hals_tol
+            kwargs["hals_max_iter"] = batch_hals_max_iter
         else:
             model_class = NMFBatchNnlsBpp
     else:
-        kwargs['max_pass'] = online_max_pass
-        kwargs['chunk_size'] = online_chunk_size
-        if algo == 'mu' or algo == 'hals' or algo == 'halsvar':
-            kwargs['chunk_max_iter'] = online_chunk_max_iter
-            kwargs['h_tol'] = online_h_tol
-            kwargs['w_tol'] = online_w_tol
-            model_class = NMFOnlineMU if algo == 'mu' else NMFOnlineHALS
+        kwargs["max_pass"] = online_max_pass
+        kwargs["chunk_size"] = online_chunk_size
+        if algo == "mu" or algo == "hals" or algo == "halsvar":
+            kwargs["chunk_max_iter"] = online_chunk_max_iter
+            kwargs["h_tol"] = online_h_tol
+            kwargs["w_tol"] = online_w_tol
+            model_class = NMFOnlineMU if algo == "mu" else NMFOnlineHALS
         else:
             model_class = NMFOnlineNnlsBpp
 
     model = model_class(
-                n_components=n_components,
-                init=init,
-                beta_loss=beta_loss,
-                tol=tol,
-                n_jobs=n_jobs,
-                random_state=random_state,
-                **kwargs
-            )
+        n_components=n_components,
+        init=init,
+        beta_loss=beta_loss,
+        tol=tol,
+        n_jobs=n_jobs,
+        random_state=random_state,
+        **kwargs
+    )
 
     H = model.fit_transform(X)
     W = model.W
@@ -205,14 +235,14 @@ def run_nmf(
 def integrative_nmf(
     X: List[Union[np.array, torch.tensor]],
     n_components: int,
-    init: str = 'normal',
+    init: str = "normal",
     algo: str = "halsvar",
     mode: str = "online",
     tol: float = 1e-4,
     n_jobs: int = -1,
     random_state: int = 0,
     use_gpu: bool = False,
-    lam: float = 5.,
+    lam: float = 5.0,
     fp_precision: Union[str, torch.dtype] = "float",
     batch_max_iter: int = 200,
     batch_hals_tol: float = 0.0008,
@@ -308,43 +338,47 @@ def integrative_nmf(
     >>> H, W, V, err = integrative_nmf(X, n_components=20, algo='bpp', mode='online')
     """
 
-    device_type = 'cpu'
+    device_type = "cpu"
     if use_gpu:
         if torch.cuda.is_available():
-            device_type = 'cuda'
+            device_type = "cuda"
             print("Use GPU mode.")
         else:
             print("CUDA is not available on your machine. Use CPU mode instead.")
 
-    if algo not in {'halsvar', 'mu', 'bpp'}:
-        raise ValueError("Parameter algo must be a valid value from ['hals', 'mu', 'bpp']!")
-    if mode not in {'batch', 'online'}:
-        raise ValueError("Parameter mode must be a valid value from ['batch', 'online']!")
+    if algo not in {"halsvar", "mu", "bpp"}:
+        raise ValueError(
+            "Parameter algo must be a valid value from ['hals', 'mu', 'bpp']!"
+        )
+    if mode not in {"batch", "online"}:
+        raise ValueError(
+            "Parameter mode must be a valid value from ['batch', 'online']!"
+        )
 
     model_class = None
-    kwargs = {'device_type': device_type, 'lam': lam, 'fp_precision': fp_precision}
+    kwargs = {"device_type": device_type, "lam": lam, "fp_precision": fp_precision}
 
-    if mode == 'batch':
-        kwargs['max_iter'] = batch_max_iter
-        if algo == 'halsvar':
+    if mode == "batch":
+        kwargs["max_iter"] = batch_max_iter
+        if algo == "halsvar":
             model_class = INMFBatchHALS
-            kwargs['hals_tol'] = batch_hals_tol
-            kwargs['hals_max_iter'] = batch_hals_max_iter
-        elif algo == 'bpp':
+            kwargs["hals_tol"] = batch_hals_tol
+            kwargs["hals_max_iter"] = batch_hals_max_iter
+        elif algo == "bpp":
             model_class = INMFBatchNnlsBpp
         else:
             model_class = INMFBatchMU
     else:
-        kwargs['max_pass'] = online_max_pass
-        kwargs['chunk_size'] = online_chunk_size
-        if algo == 'bpp':
+        kwargs["max_pass"] = online_max_pass
+        kwargs["chunk_size"] = online_chunk_size
+        if algo == "bpp":
             model_class = INMFOnlineNnlsBpp
         else:
-            model_class = INMFOnlineHALS if algo == 'halsvar' else INMFOnlineMU
-            kwargs['chunk_max_iter'] = online_chunk_max_iter
-            kwargs['h_tol'] = online_h_tol
-            kwargs['v_tol'] = online_v_tol
-            kwargs['w_tol'] = online_w_tol
+            model_class = INMFOnlineHALS if algo == "halsvar" else INMFOnlineMU
+            kwargs["chunk_max_iter"] = online_chunk_max_iter
+            kwargs["h_tol"] = online_h_tol
+            kwargs["v_tol"] = online_v_tol
+            kwargs["w_tol"] = online_w_tol
 
     model = model_class(
         n_components=n_components,

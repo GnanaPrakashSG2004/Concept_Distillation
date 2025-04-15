@@ -13,23 +13,35 @@ class INMFBatchNnlsBpp(INMFBatchBase):
         for k in range(self._n_batches):
             # Update H[k]
             if self._lambda > 0.0:
-                n_iter = nnls_bpp(self._WVWVT[k] + self._lambda * self._VVT[k], self._XWVT[k].T, self.H[k].T, self._device_type)
+                n_iter = nnls_bpp(
+                    self._WVWVT[k] + self._lambda * self._VVT[k],
+                    self._XWVT[k].T,
+                    self.H[k].T,
+                    self._device_type,
+                )
             else:
-                n_iter = nnls_bpp(self._WVWVT[k], self._XWVT[k].T, self.H[k].T, self._device_type)
+                n_iter = nnls_bpp(
+                    self._WVWVT[k], self._XWVT[k].T, self.H[k].T, self._device_type
+                )
             # print(f"Batch {k} H n_iter={n_iter}.")
             # Cache HTH
             self._HTH[k] = self.H[k].T @ self.H[k]
 
             # Update V[k]
             HTX = self.H[k].T @ self.X[k]
-            n_iter = nnls_bpp(self._HTH[k] * (1.0 + self._lambda), HTX - self._HTH[k] @ self.W, self.V[k], self._device_type)
+            n_iter = nnls_bpp(
+                self._HTH[k] * (1.0 + self._lambda),
+                HTX - self._HTH[k] @ self.W,
+                self.V[k],
+                self._device_type,
+            )
             # print(f"Batch {k} V n_iter={n_iter}.")
             # Cache VVT
             if self._lambda > 0.0:
                 self._VVT[k] = self.V[k] @ self.V[k].T
 
             # Update W numer and denomer
-            W_numer += (HTX - self._HTH[k] @ self.V[k])
+            W_numer += HTX - self._HTH[k] @ self.V[k]
             W_denom += self._HTH[k]
 
         # Update W
@@ -40,7 +52,6 @@ class INMFBatchNnlsBpp(INMFBatchBase):
             WV = self.W + self.V[k]
             self._WVWVT[k] = WV @ WV.T
             self._XWVT[k] = self.X[k] @ WV.T
-
 
     def fit(
         self,

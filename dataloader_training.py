@@ -12,6 +12,7 @@ from timm.data import resolve_data_config
 from timm.data.transforms_factory import create_transform
 from torchvision import datasets
 
+
 class SingleClassDataset(Dataset):
     def __init__(self, base_dataset, indices):
         self.base_dataset = base_dataset
@@ -27,12 +28,7 @@ class SingleClassDataset(Dataset):
 
 class ConceptDistillationTrainer:
     def __init__(
-        self,
-        pkl_dir,
-        mapping_file,
-        base_dataset,
-        batch_size=32,
-        num_workers=0
+        self, pkl_dir, mapping_file, base_dataset, batch_size=32, num_workers=0
     ):
         self.num_classes = 1000
         self.batch_size = batch_size
@@ -51,14 +47,16 @@ class ConceptDistillationTrainer:
         self.dataloaders = {}
         for class_id in range(self.num_classes):
             indices_for_class = mapping_arr[class_id]
-            self.datasets[class_id] = SingleClassDataset(base_dataset, indices_for_class)
+            self.datasets[class_id] = SingleClassDataset(
+                base_dataset, indices_for_class
+            )
 
             loader = DataLoader(
                 self.datasets[class_id],
                 batch_size=batch_size,
                 shuffle=True,
                 drop_last=False,
-                num_workers=num_workers
+                num_workers=num_workers,
             )
             self.dataloaders[class_id] = iter(loader)
 
@@ -67,7 +65,6 @@ class ConceptDistillationTrainer:
         }
         self.dataset_size = sum(self.OrigRemLen.values())
 
-
     def train(self, epochs=1):
         for epoch in range(epochs):
             print(f"=== EPOCH {epoch+1}/{epochs} ===")
@@ -75,7 +72,10 @@ class ConceptDistillationTrainer:
             RemLen = dict(self.OrigRemLen)
             valid_class_ids = list(RemLen.keys())
 
-            num_batches = sum(math.ceil(len(self.datasets[class_id]) / self.batch_size) for class_id in valid_class_ids)
+            num_batches = sum(
+                math.ceil(len(self.datasets[class_id]) / self.batch_size)
+                for class_id in valid_class_ids
+            )
 
             for batch_idx in tqdm(range(num_batches)):
                 chosen_class = random.choice(valid_class_ids)
@@ -106,21 +106,26 @@ class ConceptDistillationTrainer:
 
 if __name__ == "__main__":
     # Example usage
-    model = timm.create_model(
-        "resnet50.a2_in1k",
-        pretrained=True,
-        cache_dir=f"/scratch/swayam/timm_cache/"
-    ).eval().requires_grad_(False).to("cuda")
+    model = (
+        timm.create_model(
+            "resnet50.a2_in1k",
+            pretrained=True,
+            cache_dir=f"/scratch/swayam/timm_cache/",
+        )
+        .eval()
+        .requires_grad_(False)
+        .to("cuda")
+    )
 
     config = resolve_data_config({}, model=model)
     imagenet_transform = create_transform(**config)
-    
+
     base_dataset = datasets.ImageNet(
-        root="/scratch/swayam/imagenet_data/imagenet", 
-        split="val", 
-        transform=imagenet_transform
+        root="/scratch/swayam/imagenet_data/imagenet",
+        split="val",
+        transform=imagenet_transform,
     )
-    
+
     pkl_dir = "/scratch/swayam/rsvc-exps/outputs/data/dn=in_spl=val_ni=100_seed=0/r50_ckpt=None/ps=64_flv=v1_igs=c/dm=nmf_nc=10_seed=0/concepts/layer4.2.act3"
     mapping_file = "restructured_map_val.npy"
 

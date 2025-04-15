@@ -22,7 +22,7 @@ class NMFOnlineBase(NMFBase):
         max_pass: int = 20,
         chunk_size: int = 5000,
     ):
-        assert beta_loss == 2.0 # only work for F norm for now
+        assert beta_loss == 2.0  # only work for F norm for now
 
         super().__init__(
             n_components=n_components,
@@ -42,7 +42,6 @@ class NMFOnlineBase(NMFBase):
         self._max_pass = max_pass
         self._chunk_size = chunk_size
 
-
     def _h_err(self, h, hth, WWT, xWT):
         # Forbenious-norm^2 in trace format (No X)
         res = self._trace(WWT, hth) / 2.0 - self._trace(h, xWT)
@@ -54,21 +53,29 @@ class NMFOnlineBase(NMFBase):
         return res
 
     def _loss(self):
-        """ calculate loss online by passing through all data"""
+        """calculate loss online by passing through all data"""
         i = 0
         WWT = self.W @ self.W.T
 
-        sum_h_err = torch.tensor(0.0, dtype=torch.double, device=self._device_type) # make sure sum_h_err is double to avoid summation errors
+        sum_h_err = torch.tensor(
+            0.0, dtype=torch.double, device=self._device_type
+        )  # make sure sum_h_err is double to avoid summation errors
         while i < self.H.shape[0]:
-            x = self.X[i:(i+self._chunk_size), :]
-            h = self.H[i:(i+self._chunk_size), :]
+            x = self.X[i : (i + self._chunk_size), :]
+            h = self.H[i : (i + self._chunk_size), :]
             xWT = x @ self.W.T
             hth = h.T @ h
             sum_h_err += self._h_err(h, hth, WWT, xWT)
             i += self._chunk_size
 
-        return torch.sqrt(2.0 * (sum_h_err + self._X_SS_half + self._get_regularization_loss(self.W, self._l1_reg_W, self._l2_reg_W)))
-
+        return torch.sqrt(
+            2.0
+            * (
+                sum_h_err
+                + self._X_SS_half
+                + self._get_regularization_loss(self.W, self._l1_reg_W, self._l2_reg_W)
+            )
+        )
 
     def fit(self, X):
         super().fit(X)

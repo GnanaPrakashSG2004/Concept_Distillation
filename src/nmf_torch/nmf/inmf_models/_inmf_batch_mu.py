@@ -6,9 +6,8 @@ from typing import List
 
 class INMFBatchMU(INMFBatchBase):
     def _update_matrix(self, mat, numer, denom):
-        mat *= (numer / denom)
+        mat *= numer / denom
         mat[denom < self._epsilon] = 0.0
-
 
     def _update_H_V_W(self):
         W_numer = torch.zeros_like(self.W)
@@ -17,7 +16,11 @@ class INMFBatchMU(INMFBatchBase):
         for k in range(self._n_batches):
             # Update H[k]
             H_numer = self._XWVT[k]
-            H_denom = self.H[k] @ (self._WVWVT[k] + self._lambda * self._VVT[k]) if self._lambda > 0.0 else self.H[k] @ self._WVWVT[k]
+            H_denom = (
+                self.H[k] @ (self._WVWVT[k] + self._lambda * self._VVT[k])
+                if self._lambda > 0.0
+                else self.H[k] @ self._WVWVT[k]
+            )
             self._update_matrix(self.H[k], H_numer, H_denom)
             # Cache HTH
             self._HTH[k] = self.H[k].T @ self.H[k]
@@ -40,7 +43,6 @@ class INMFBatchMU(INMFBatchBase):
             WV = self.W + self.V[k]
             self._WVWVT[k] = WV @ WV.T
             self._XWVT[k] = self.X[k] @ WV.T
-
 
     def fit(
         self,

@@ -6,14 +6,23 @@ from PIL import ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 
 n_files = {
-    "train": 1281160, # actually 1281167,but we delete a corrupted file
+    "train": 1281160,  # actually 1281167,but we delete a corrupted file
     "val": 50000,
 }
 
 
 class ImageNetModified(torchvision.datasets.ImageNet):
-    def __init__(self, root, split='train', transform=None, target_transform=None, concept_params=None):
-        super(ImageNetModified, self).__init__(root, split=split, transform=transform, target_transform=target_transform)
+    def __init__(
+        self,
+        root,
+        split="train",
+        transform=None,
+        target_transform=None,
+        concept_params=None,
+    ):
+        super(ImageNetModified, self).__init__(
+            root, split=split, transform=transform, target_transform=target_transform
+        )
         self.concept_training = concept_params
         self.active_samples = self.samples
         self.concept_params = concept_params
@@ -27,30 +36,39 @@ class ImageNetModified(torchvision.datasets.ImageNet):
                     self.class_samples[target] = []
                 self.class_samples[target].append((path, target))
             self.concept_samples = []
-            for class_ind in concept_params['concept_classes']:
+            for class_ind in concept_params["concept_classes"]:
                 self.concept_samples.extend(self.class_samples[class_ind])
 
-            if concept_params.get('repeat', 1) > 1 and split == 'train':
-                self.concept_samples *= concept_params['repeat']
+            if concept_params.get("repeat", 1) > 1 and split == "train":
+                self.concept_samples *= concept_params["repeat"]
 
-            if concept_params['join_samples'] and split == 'train':
+            if concept_params["join_samples"] and split == "train":
                 # add "dataset index" to the concept samples
-                self.concept_samples = [(path, target, 0) for i, (path, target) in enumerate(self.concept_samples)]
-                self.samples = [(path, target, 1) for i, (path, target) in enumerate(self.samples)]
+                self.concept_samples = [
+                    (path, target, 0)
+                    for i, (path, target) in enumerate(self.concept_samples)
+                ]
+                self.samples = [
+                    (path, target, 1) for i, (path, target) in enumerate(self.samples)
+                ]
                 self.active_samples = self.concept_samples + self.samples
             else:
                 self.active_samples = self.concept_samples
 
-    def set_active(self, mode='classification'):
-        if mode == 'classification':
+    def set_active(self, mode="classification"):
+        if mode == "classification":
             self.active_samples = self.samples
-        elif mode == 'concept':
+        elif mode == "concept":
             self.active_samples = self.concept_samples
         else:
             raise ValueError(f"Unknown mode {mode}")
 
     def __getitem__(self, index):
-        if self.concept_params is not None and self.split == 'train' and self.concept_params['join_samples']:
+        if (
+            self.concept_params is not None
+            and self.split == "train"
+            and self.concept_params["join_samples"]
+        ):
             path, target, dataset_idx = self.active_samples[index]
         else:
             path, target = self.active_samples[index]
@@ -68,12 +86,19 @@ class ImageNetModified(torchvision.datasets.ImageNet):
         return len(self.active_samples)
 
 
-def imagenet(split: str, transforms=None, imagenet_dir = '/scratch/swayam/imagenet_data/imagenet/'):
+def imagenet(
+    split: str, transforms=None, imagenet_dir="/scratch/swayam/imagenet_data/imagenet/"
+):
     # n_files_found = sum([len(x) for _, _, x in os.walk(os.path.join(imagenet_dir, split))])
     # assert n_files_found >= n_files[split], \
     # f"Imagenet {split} dataset is not complete. Found {n_files_found}, expected {n_files[split]} files."
 
-    return torchvision.datasets.ImageNet(imagenet_dir, split=split, transform=transforms)
+    return torchvision.datasets.ImageNet(
+        imagenet_dir, split=split, transform=transforms
+    )
 
-def imagenet_modified(split: str, transforms=None, imagenet_dir = '/scratch/swayam/imagenet_data/imagenet/'):
+
+def imagenet_modified(
+    split: str, transforms=None, imagenet_dir="/scratch/swayam/imagenet_data/imagenet/"
+):
     return ImageNetModified(imagenet_dir, split=split, transform=transforms)
