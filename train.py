@@ -72,6 +72,7 @@ class ConceptDistillationTrainer:
         student_model,
         save_dir,
         val_loader,
+        alpha,
         batch_size=32,
         num_workers=0,
         device="cuda",
@@ -86,6 +87,7 @@ class ConceptDistillationTrainer:
         self.use_wandb = use_wandb
         self.save_dir = save_dir
         self.val_loader = val_loader
+        self.alpha = alpha # Weight for alignment loss
         
         # Set models
         self.teacher_model = teacher_model.to(device)
@@ -147,6 +149,7 @@ class ConceptDistillationTrainer:
         """
         Save the student model checkpoint
         """
+        os.makedirs(self.save_dir, exist_ok=True)
         save_path = os.path.join(self.save_dir, f"student_model_epoch_{epoch}.pth")
         torch.save({
             'epoch': epoch,
@@ -638,8 +641,7 @@ class ConceptDistillationTrainer:
                 )
                 
                 # 6. Compute total loss and backprop
-                alpha = 0.5  # Balance between classification and alignment loss
-                total_loss = class_loss + alpha * alignment_loss
+                total_loss = (1 - self.alpha)*class_loss + self.alpha * alignment_loss
                 total_loss.backward()
                 optimizer.step()
                 
@@ -771,6 +773,8 @@ def parse_args():
     # Training parameters
     parser.add_argument("--batch-size", type=int, default=128,
                         help="Batch size for training")
+    parser.add_argument("--alpha", type=float, required=True,
+                        help="Parameter used to weigh alignment loss")
     parser.add_argument("--epochs", type=int, default=5,
                         help="Number of training epochs")
     parser.add_argument("--lr", type=float, default=0.001,
@@ -864,6 +868,7 @@ if __name__ == "__main__":
         use_wandb=args.use_wandb,
         save_dir=args.save_dir,
         val_loader=val_loader,
+        alpha=args.alpha,
     )
     
     # Train

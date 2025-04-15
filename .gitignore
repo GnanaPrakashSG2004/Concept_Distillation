@@ -71,3 +71,4 @@ lab/
 # *.png
 checkpoints/
 outputs/
+wandb/
