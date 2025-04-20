@@ -277,6 +277,7 @@ class ConceptDistillationTrainer:
         # Loss functions
         self.classification_criterion = nn.KLDivLoss(reduction="batchmean")
 
+
     def save_model(self, epoch, is_best=False, optimizer=None, scheduler=None):
         os.makedirs(self.save_dir, exist_ok=True)
         base_filename = "student_model"
@@ -308,6 +309,7 @@ class ConceptDistillationTrainer:
             self.logger.info(
                 f"*** New best model saved at {best_path} (Epoch: {epoch}, Acc: {self.metrics['best_val_accuracy']:.2f}%) ***"
             )
+
 
     def extract_features_from_last_layer(self, model, x, target_layer_name):
         activation = {}
@@ -356,6 +358,7 @@ class ConceptDistillationTrainer:
 
         # Ensure features are detached (hooks usually detach, fallbacks might not)
         return features.detach()
+
 
     def find_nmf_fixed_H(
         self,
@@ -512,6 +515,7 @@ class ConceptDistillationTrainer:
 
         return U_teacher  # Shape: (n_samples, n_concepts)
 
+
     def compute_projection_matrix_nmf(
         self,
         student_features: torch.Tensor,  # A_S [m, n] (batch_size, student_feat_dim)
@@ -659,6 +663,46 @@ class ConceptDistillationTrainer:
 
         return W_star  # Shape: (n_features, k_targets)
 
+
+    def solve_ridge_pytorch(self, A_S, U_T, lambda_reg, device):
+        # A_S: [m, n] (student features, requires_grad=True)
+        # U_T: [m, k] (target teacher coeffs, detached)
+        # lambda_reg: scalar regularization strength
+        # Returns W_star: [n, k] (projection matrix)
+
+        m, n = A_S.shape
+        k = U_T.shape[1]
+
+        A_S = A_S.requires_grad_(True)
+        U_T = U_T.detach()
+
+        A_S_T = A_S.T
+        A_S_T_A_S = A_S_T @ A_S  # [n, n]
+
+        identity = torch.eye(n, device=device, dtype=A_S.dtype)
+        regularized_term = A_S_T_A_S + lambda_reg * identity # [n, n]
+
+        A_S_T_U_T = A_S_T @ U_T
+
+        # We solve the linear system: (A_S^T A_S + λI) W* = A_S^T U_T
+        try:
+            # Using torch.linalg.solve for numerical stability
+            W_star = torch.linalg.solve(regularized_term, A_S_T_U_T)
+            
+        except torch._C._LinAlgError as e:
+            print(f"Warning: torch.linalg.solve failed ({e}). Trying pinv.")
+            # Add jitter for stability before pinv if needed
+            # regularized_term += 1e-6 * torch.eye(n, device=device, dtype=A_S.dtype)
+            try:
+                W_star = torch.linalg.pinv(regularized_term) @ A_S_T_U_T
+            except Exception as pinv_e:
+                print(f"Error: Both solve and pinv failed for W*: {pinv_e}")
+                return None
+
+        # W_star now depends differentiably on A_S
+        return W_star
+
+
     def concept_alignment_loss(self, student_features, W_star, teacher_concept_coeffs):
         # Ensure inputs are torch tensors on the correct device
         if isinstance(W_star, np.ndarray):
@@ -744,12 +788,24 @@ class ConceptDistillationTrainer:
             student_concepts, teacher_concept_coeffs_tensor, reduction="mean"
         )
 
+        # print(f"Alignment loss: {alignment_loss.item()}")
+
+        # print(
+            # f"Student concepts: {student_concepts.cpu().detach().numpy()}"
+        # )
+
+        # print(
+            # f"Teacher concept coeffs: {teacher_concept_coeffs_tensor.cpu().numpy()}"
+        # )
+
+
         # Check for NaN loss
         if torch.isnan(alignment_loss):
             self.logger.error("NaN detected in calculated alignment_loss.")
             raise ValueError("NaN detected in calculated alignment_loss.")
 
         return alignment_loss
+
 
     def train(self, epochs, lr):
         optimizer = torch.optim.AdamW(self.student_model.parameters(), lr=lr)
@@ -871,11 +927,18 @@ class ConceptDistillationTrainer:
                         batch_U_teacher_filt = batch_U_teacher_tensor[processed_indices]
 
                         # 4b. Compute ONE projection matrix W* for the valid part of the batch
-                        W_star_np = self.compute_projection_matrix_nmf(
-                            student_features_filt,  # Torch tensor [B_filt, S_feat]
-                            batch_U_teacher_filt,  # Torch tensor [B_filt, N_concepts]
-                            verbose=False,
-                        )  # Assume it returns a valid np.ndarray
+                        # W_star_np = self.compute_projection_matrix_nmf(
+                        #     student_features_filt,  # Torch tensor [B_filt, S_feat]
+                        #     batch_U_teacher_filt,  # Torch tensor [B_filt, N_concepts]
+                        #     verbose=False,
+                        # )  # Assume it returns a valid np.ndarray
+
+                        W_star_np = self.solve_ridge_pytorch(
+                            student_features_filt,
+                            batch_U_teacher_filt,
+                            self.lambda_reg,
+                            self.device,
+                        )
 
                         # 5. Compute alignment loss (using the W* computed for the batch subset)
                         # (The concept_alignment_loss function internally handles W* conversion)
@@ -937,11 +1000,11 @@ class ConceptDistillationTrainer:
                     log_msg = (
                         f"Epoch {epoch+1}, Step {total_steps} [{batch_idx+1}/{len(self.train_loader)}], "
                         f"LR: {current_lr:.6f}, Loss: {total_loss.item():.4f} "
-                        f"(Class: {class_loss.item():.4f}, Align: {alignment_loss.item():.4f})"
+                        f"(Class: {class_loss.item():.4f}, Align: {alignment_loss.item()})"
                     )
                     self.logger.info(log_msg)
 
-                progress_bar.set_postfix(loss=total_loss.item(), lr=current_lr)
+                progress_bar.set_postfix(loss=total_loss.item(), lr=current_lr, align_loss=alignment_loss.item(), class_loss=class_loss.item())
                 self.metrics["batch_losses"][epoch].append(
                     {
                         "total": total_loss.item(),
@@ -980,7 +1043,7 @@ class ConceptDistillationTrainer:
             self.logger.info(f"Epoch {epoch+1} completed in {epoch_time:.2f}s.")
             self.logger.info(f"  Avg Loss: {avg_epoch_loss:.4f}")
             self.logger.info(f"  Avg Class Loss: {avg_epoch_class_loss:.4f}")
-            self.logger.info(f"  Avg Align Loss: {avg_epoch_align_loss:.4f}")
+            self.logger.info(f"  Avg Align Loss: {avg_epoch_align_loss:}")
 
             # Perform validation
             eval_results = self.evaluate(self.val_loader)
@@ -1032,6 +1095,7 @@ class ConceptDistillationTrainer:
         )
         return self.metrics
 
+
     def evaluate(self, loader):
         self.logger.info("Starting evaluation...")
         self.teacher_model.eval()
@@ -1069,6 +1133,7 @@ class ConceptDistillationTrainer:
             "teacher_accuracy": teacher_accuracy,
             "student_accuracy": student_accuracy,
         }
+
 
 
 def parse_args():
@@ -1231,7 +1296,7 @@ def parse_args():
         help="Log training batch metrics every N batches.",
     )
     parser.add_argument(
-        "--use-wandb", action="store_true", help="Enable logging to Weights & Biases."
+        "--use_wandb", action="store_true", help="Enable logging to Weights & Biases."
     )
     parser.add_argument(
         "--wandb-project",
@@ -1263,6 +1328,8 @@ if __name__ == "__main__":
 
     # Set seed for reproducibility
     set_seed(args.seed)
+    args.use_wandb = True
+    print(f"WANDB_AVAILABLE: {WANDB_AVAILABLE}")
 
     # Initialize wandb if requested
     if args.use_wandb:
