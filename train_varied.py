@@ -8,6 +8,7 @@ from datetime import datetime
 import time
 import warnings
 import random
+from pprint import pprint
 
 import torch
 import torch.nn as nn
@@ -74,6 +75,7 @@ class ConceptDistillationTrainer:
         student_layer_name,
         save_dir,
         val_loader,
+        align_loss_scale,
         alpha,
         lambda_reg,
         kl_temp,
@@ -96,6 +98,7 @@ class ConceptDistillationTrainer:
         self.use_wandb = use_wandb
         self.save_dir = save_dir
         self.val_loader = val_loader
+        self.align_loss_scale = align_loss_scale
         self.alpha = alpha
         self.lambda_reg = lambda_reg
         self.kl_temperature = kl_temp
@@ -148,6 +151,8 @@ class ConceptDistillationTrainer:
                         f"Concept data 'W' for class {class_id} is not a NumPy array. Skipping."
                     )
                     continue
+                else:
+                    W_teacher = np.array(W_teacher, dtype=np.float32) # Pkl files can be float64
 
                 current_num_concepts = W_teacher.shape[0]
                 if num_concepts is None:
@@ -260,6 +265,7 @@ class ConceptDistillationTrainer:
             num_workers=num_workers,
             drop_last=False,  # Keep last batch even if smaller
             pin_memory=True if device == "cuda" else False,
+            prefetch_factor=2,
         )
         self.dataset_size = len(train_subset)  # Correct size after filtering
         self.logger.info(
@@ -429,61 +435,14 @@ class ConceptDistillationTrainer:
             beta_loss="frobenius",
             verbose=verbose > 1,
         )
-        # Initialize W (the matrix to find, U_teacher) [n_samples, n_concepts]
-        # Sklearn's NMF with fixed H requires W init, but fit_transform finds W.
-        # We are essentially finding W (U_teacher) given X (A_teacher) and fixed H (W_teacher).
         # sklearn NMF terminology: X ≈ W @ H. Here X=features_np, H=W_teacher_nonneg. We want W.
 
         try:
-            with warnings.catch_warnings():
-                # Ignore convergence warnings if max_iter is reached
-                warnings.filterwarnings("ignore", category=ConvergenceWarning)
-                # Ignore potential sklearn NMF warnings about non-positivity if clipping happened
-                warnings.filterwarnings(
-                    "ignore", message=".*positive.*", category=UserWarning
-                )
-                # The `fit_transform` finds W when H is not given.
-                # To fit with fixed H, we need to use the internal `_fit_transform` or manually iterate.
-                # Let's try the standard `fit_transform` and see if it respects a fixed H if passed somehow.
-                # It seems `fit_transform` *doesn't* support fixed H directly in public API.
-                # We might need a custom loop or approximation if NMF doesn't have this feature easily accessible.
-                # --- Re-evaluating sklearn NMF for fixed H ---
-                # Sklearn's NMF `fit` *can* take `H` and `W` for custom init, but `fit_transform` finds `W`.
-                # To find `W` with fixed `H`, we might need to transpose the problem or use a different library?
-                # Let's try transposing: Solve A_teacher.T ≈ W_teacher.T @ U_teacher.T
-                # Here, X = A_teacher.T, W = W_teacher.T (fixed), H = U_teacher.T (to find)
-                X_T = features_np.T  # [feat_dim, n_samples]
-                W_fixed_T = W_teacher_nonneg.T  # [feat_dim, n_concepts]
-                n_components_H = (
-                    n_samples  # H should have shape (n_concepts, n_samples)
-                )
+            # Set params of the nmf model, i.e., H to be fixed using W_teacher_nonneg
+            nmf_model.components_ = W_teacher_nonneg
 
-                # Initialize H (U_teacher.T)
-                rng_T = np.random.RandomState(self.seed)
-                dtype_T = X_T.dtype
-                W_fixed_T = W_fixed_T.astype(dtype_T, copy=False)
-                H_init_T = rng_T.rand(n_concepts, n_samples).astype(dtype_T, copy=False)
-                H_init_T = np.maximum(H_init_T, 1e-9)  # Ensure positivity
-
-                nmf_transposed = NMF(
-                    n_components=n_concepts,  # Number of columns in FIXED W (W_teacher.T)
-                    init="custom",
-                    solver="mu",
-                    beta_loss="frobenius",
-                    max_iter=self.nmf_max_iter,
-                    tol=self.nmf_tol,
-                    random_state=self.seed,
-                    verbose=verbose > 1,
-                    # No regularization needed here typically for U_teacher
-                )
-
-                # Fit using X=A_teacher.T, fixed W=W_teacher.T, initial H=H_init_T (U_teacher.T)
-                # Use `fit` not `fit_transform` because we provide W
-                nmf_transposed.fit(X=X_T, W=W_fixed_T, H=H_init_T)
-                U_teacher_T = (
-                    nmf_transposed.components_
-                )  # Learned H is U_teacher.T [n_concepts, n_samples]
-                U_teacher = U_teacher_T.T  # Transpose back to [n_samples, n_concepts]
+            # Get the W matrix (U_teacher) from the NMF model using the transform method
+            U_teacher = nmf_model.transform(features_np)
 
             # Check for NaNs/Infs
             if (
@@ -498,15 +457,16 @@ class ConceptDistillationTrainer:
 
         except Exception as e:
             self.logger.error(
-                f"NMF (find_nmf_fixed_H - transposed) failed: {e}", exc_info=True
+                f"NMF (find_nmf_fixed_H) failed: {e}", exc_info=True
             )
             raise
 
         if verbose:
-            # Rec error is for the transposed problem
-            rec_err = nmf_transposed.reconstruction_err_
+            rec_err = np.linalg.norm(
+                features_np - np.dot(U_teacher, W_teacher_nonneg), ord="fro"
+            )
             print(
-                f"NMF fixed H (transposed) complete. Final reconstruction error: {rec_err:.4f}"
+                f"NMF fixed H complete. Final reconstruction error: {rec_err:.4f}"
             )
 
         assert np.all(
@@ -514,154 +474,6 @@ class ConceptDistillationTrainer:
         ), "NMF result U_teacher should be non-negative. Check input data and NMF settings."
 
         return U_teacher  # Shape: (n_samples, n_concepts)
-
-
-    def compute_projection_matrix_nmf(
-        self,
-        student_features: torch.Tensor,  # A_S [m, n] (batch_size, student_feat_dim)
-        target_coefficients: torch.Tensor,  # U [m, k] (batch_size, n_concepts)
-        verbose: bool = False,
-    ) -> Union[
-        np.ndarray, None
-    ]:  # Returns W* [n, k] (student_feat_dim, n_concepts) or None on failure
-        # 1. Input Conversion and Validation
-        if isinstance(student_features, torch.Tensor):
-            A_S = student_features.detach().cpu().numpy()
-        else:
-            self.logger.error(
-                "Internal error: student_features must be Tensor in compute_projection_matrix_nmf."
-            )
-            raise TypeError("student_features must be a torch.Tensor.")
-
-        if isinstance(target_coefficients, torch.Tensor):
-            U = target_coefficients.detach().cpu().numpy()
-        else:
-            self.logger.error(
-                "Internal error: target_coefficients must be Tensor in compute_projection_matrix_nmf."
-            )
-            raise TypeError("target_coefficients must be a torch.Tensor.")
-
-        # Clip negatives (NMF requirement)
-        if np.any(A_S < 0):
-            if verbose:
-                warnings.warn(
-                    "Clipping negative values in student_features (A_S) to 0 for NMF.",
-                    UserWarning,
-                )
-            A_S = np.maximum(A_S, 0)
-        if np.any(U < 0):
-            if verbose:
-                warnings.warn(
-                    "Clipping negative values in target_coefficients (U) to 0 for NMF.",
-                    UserWarning,
-                )
-            U = np.maximum(U, 0)
-
-        if A_S.shape[0] != U.shape[0]:
-            self.logger.error(
-                f"Shape mismatch in compute_projection_matrix_nmf: student_features samples {A_S.shape[0]} != target_coefficients samples {U.shape[0]}."
-            )
-            raise ValueError(f"Shape mismatch: {A_S.shape[0]} != {U.shape[0]}")
-        if self.lambda_reg < 0:
-            self.logger.error(
-                f"Invalid lambda_reg: {self.lambda_reg}. Must be non-negative."
-            )
-            raise ValueError(
-                f"Invalid lambda_reg: {self.lambda_reg}. Must be non-negative."
-            )
-
-        # Handle empty inputs
-        m, n_features = A_S.shape  # m samples, n student features
-        _, k_targets = U.shape  # m samples, k target coefficients/concepts
-        if m == 0:
-            self.logger.warning(
-                "compute_projection_matrix_nmf called with 0 samples. Returning zeros."
-            )
-            raise ValueError("No samples provided for NMF.")
-
-        # 2. Setup NMF: Solve U ≈ A_S @ W* (X ≈ W @ H => X=U, W=A_S(fixed), H=W*(learn))
-        # We need to find H (W*) given X (U) and fixed W (A_S).
-        nmf_model = NMF(
-            n_components=n_features,  # Number of columns in FIXED W (A_S) -> This should be n_concepts for H!
-            init="random",  # Or 'nndsvda' for potentially better results
-            solver="mu",
-            beta_loss="frobenius",
-            max_iter=self.nmf_max_iter,
-            tol=self.nmf_tol,
-            random_state=self.seed,
-            l1_ratio=0.0,  # l1_ratio=0 means L2 regularization
-            alpha_W=0.0,  # No regularization on fixed W (A_S)
-            alpha_H=self.lambda_reg,  # L2 regularization on H (W*): lambda * ||W*||_F^2 / 2 (sklearn uses alpha = lambda)
-            # Note: Sklearn NMF alpha_H applies 0.5 * alpha_H * ||H||_F^2. So alpha_H=lambda_reg seems correct if lambda_reg is the factor multiplying the L2 norm squared. Double check convention if results are sensitive.
-            verbose=verbose > 1,
-        )
-
-        # Correcting n_components for finding H:
-        # X [m, k_targets] ≈ W [m, n_features] @ H [n_features, k_targets]
-        # We want to find H = W*
-        # So X = U, W = A_S (fixed), H = W* (learn)
-        # The `n_components` parameter in sklearn NMF defines the inner dimension,
-        # which is the number of columns in W and the number of rows in H.
-        # Therefore, `n_components` should be `n_features` (student_feat_dim).
-
-        nmf_model_correct = NMF(
-            n_components=n_features,  # Number of components = student feature dimension
-            init="random",
-            solver="mu",
-            beta_loss="frobenius",
-            max_iter=self.nmf_max_iter,
-            tol=self.nmf_tol,
-            random_state=self.seed,
-            l1_ratio=0.0,
-            alpha_W=0.0,
-            alpha_H=self.lambda_reg,
-            verbose=verbose > 1,
-        )
-
-        # Initialize H (W*) [n_features, k_targets]
-        rng = np.random.RandomState(self.seed)
-        dtype = A_S.dtype
-        H_init = rng.rand(n_features, k_targets).astype(dtype, copy=False)
-        H_init = np.maximum(H_init, 1e-9)  # Ensure positivity
-
-        # Fit using X=U, fixed W=A_S, initial H=H_init
-        try:
-            with warnings.catch_warnings():
-                warnings.filterwarnings("ignore", category=ConvergenceWarning)
-                warnings.filterwarnings(
-                    "ignore", message=".*init.*", category=UserWarning
-                )  # Ignore custom init warnings if needed
-                warnings.filterwarnings(
-                    "ignore", message=".*positive.*", category=UserWarning
-                )
-                # Use fit, providing W (A_S) and H_init (W*_init)
-                nmf_model_correct.fit(X=U, W=A_S, H=H_init)
-            W_star = (
-                nmf_model_correct.components_
-            )  # Learned H is our W* [n_features, k_targets]
-
-            # Check for NaNs in result
-            if W_star is None or np.isnan(W_star).any() or np.isinf(W_star).any():
-                self.logger.error(
-                    "NMF (compute_projection_matrix_nmf) resulted in NaN/Inf."
-                )
-                raise ValueError("NMF result W_star contains NaN/Inf.")
-
-        except Exception as e:
-            self.logger.error(
-                f"NMF (compute_projection_matrix_nmf) failed: {e}", exc_info=True
-            )
-            raise RuntimeError(f"NMF failed: {e}")
-
-        if verbose:
-            rec_err = nmf_model_correct.reconstruction_err_
-            print(f"NMF projection complete. Final reconstruction error: {rec_err:.4f}")
-
-        assert np.all(
-            W_star >= 0
-        ), "NMF result W_star should be non-negative. Check input data and NMF settings."
-
-        return W_star  # Shape: (n_features, k_targets)
 
 
     def solve_ridge_pytorch(self, A_S, U_T, lambda_reg, device):
@@ -804,7 +616,7 @@ class ConceptDistillationTrainer:
             self.logger.error("NaN detected in calculated alignment_loss.")
             raise ValueError("NaN detected in calculated alignment_loss.")
 
-        return alignment_loss
+        return alignment_loss * self.align_loss_scale  # Scale by a constant so that both losses are comparable
 
 
     def train(self, epochs, lr):
@@ -844,7 +656,7 @@ class ConceptDistillationTrainer:
                 optimizer.zero_grad()
 
                 # 1. Forward pass for classification (Teacher and Student)
-                with torch.no_grad():
+                with torch.inference_mode():
                     teacher_outputs = self.teacher_model(images)
                 student_outputs = self.student_model(images)
 
@@ -865,7 +677,7 @@ class ConceptDistillationTrainer:
                     W_star_np = None
 
                     # 3. Extract features
-                    with torch.no_grad():
+                    with torch.inference_mode():
                         teacher_features = self.extract_features_from_last_layer(
                             self.teacher_model, images, self.teacher_layer_name
                         )
@@ -998,13 +810,18 @@ class ConceptDistillationTrainer:
                     or batch_idx == len(self.train_loader) - 1
                 ):
                     log_msg = (
-                        f"Epoch {epoch+1}, Step {total_steps} [{batch_idx+1}/{len(self.train_loader)}], "
-                        f"LR: {current_lr:.6f}, Loss: {total_loss.item():.4f} "
-                        f"(Class: {class_loss.item():.4f}, Align: {alignment_loss.item()})"
+                        f"Epoch {epoch+1}, Step {total_steps} [{batch_idx+1}/{len(self.train_loader)}], LR: {current_lr:.6f}\n"
+                        f"\tAvg Total Loss: {(epoch_loss / batch_count):.4f}\n"
+                        f"\tAvg Class Loss: {(epoch_class_loss / batch_count):.4f}\n"
+                        f"\tAvg Align Loss: {(epoch_align_loss / batch_count):.4f})\n"
                     )
                     self.logger.info(log_msg)
 
-                progress_bar.set_postfix(loss=total_loss.item(), lr=current_lr, align_loss=alignment_loss.item(), class_loss=class_loss.item())
+                progress_bar.set_postfix(
+                    avg_loss=epoch_loss / batch_count, lr=current_lr,
+                    avg_align_loss=epoch_align_loss / batch_count,
+                    avg_class_loss=epoch_class_loss / batch_count,
+                )
                 self.metrics["batch_losses"][epoch].append(
                     {
                         "total": total_loss.item(),
@@ -1019,6 +836,9 @@ class ConceptDistillationTrainer:
                             "train/batch_loss": total_loss.item(),
                             "train/class_loss": class_loss.item(),
                             "train/alignment_loss": alignment_loss.item(),
+                            "train/avg_batch_loss": epoch_loss / batch_count,
+                            "train/avg_batch_class_loss": epoch_class_loss / batch_count,
+                            "train/avg_batch_align_loss": epoch_align_loss / batch_count,
                             "train/learning_rate": current_lr,
                             "step": total_steps,
                             "epoch_frac": epoch
@@ -1041,9 +861,9 @@ class ConceptDistillationTrainer:
 
             epoch_time = time.time() - epoch_start_time
             self.logger.info(f"Epoch {epoch+1} completed in {epoch_time:.2f}s.")
-            self.logger.info(f"  Avg Loss: {avg_epoch_loss:.4f}")
-            self.logger.info(f"  Avg Class Loss: {avg_epoch_class_loss:.4f}")
-            self.logger.info(f"  Avg Align Loss: {avg_epoch_align_loss:}")
+            self.logger.info(f"\tAvg Loss: {avg_epoch_loss:.4f}")
+            self.logger.info(f"\tAvg Class Loss: {avg_epoch_class_loss:.4f}")
+            self.logger.info(f"\tAvg Align Loss: {avg_epoch_align_loss:.4f}")
 
             # Perform validation
             eval_results = self.evaluate(self.val_loader)
@@ -1096,6 +916,7 @@ class ConceptDistillationTrainer:
         return self.metrics
 
 
+    @torch.inference_mode()
     def evaluate(self, loader):
         self.logger.info("Starting evaluation...")
         self.teacher_model.eval()
@@ -1103,20 +924,19 @@ class ConceptDistillationTrainer:
         teacher_correct = 0
         student_correct = 0
         total = 0
-        with torch.no_grad():
-            for images, labels in tqdm(loader, desc="Evaluating", leave=False):
-                images = images.to(self.device, non_blocking=True)
-                labels = labels.to(self.device, non_blocking=True)
-                batch_size = labels.size(0)
-                total += batch_size
+        for images, labels in tqdm(loader, desc="Evaluating", leave=False):
+            images = images.to(self.device, non_blocking=True)
+            labels = labels.to(self.device, non_blocking=True)
+            batch_size = labels.size(0)
+            total += batch_size
 
-                teacher_outputs = self.teacher_model(images)
-                _, teacher_preds = torch.max(teacher_outputs, 1)
-                teacher_correct += (teacher_preds == labels).sum().item()
+            teacher_outputs = self.teacher_model(images)
+            _, teacher_preds = torch.max(teacher_outputs, 1)
+            teacher_correct += (teacher_preds == labels).sum().item()
 
-                student_outputs = self.student_model(images)
-                _, student_preds = torch.max(student_outputs, 1)
-                student_correct += (student_preds == labels).sum().item()
+            student_outputs = self.student_model(images)
+            _, student_preds = torch.max(student_outputs, 1)
+            student_correct += (student_preds == labels).sum().item()
 
         teacher_accuracy = 100.0 * teacher_correct / total if total > 0 else 0
         student_accuracy = 100.0 * student_correct / total if total > 0 else 0
@@ -1212,6 +1032,12 @@ def parse_args():
 
     # --- Training Hyperparameters ---
     parser.add_argument(
+        "--align-loss-scale",
+        type=float,
+        default=1e7,
+        help="Scale factor for the alignment loss.",
+    )
+    parser.add_argument(
         "--batch-size",
         type=int,
         default=256,
@@ -1260,7 +1086,7 @@ def parse_args():
         "--seed", type=int, default=42, help="Random seed for reproducibility."
     )
     parser.add_argument(
-        "--num-workers", type=int, default=0, help="Number of data loading workers."
+        "--num-workers", type=int, default=8, help="Number of data loading workers."
     )
     parser.add_argument(
         "--device",
@@ -1296,7 +1122,7 @@ def parse_args():
         help="Log training batch metrics every N batches.",
     )
     parser.add_argument(
-        "--use_wandb", action="store_true", help="Enable logging to Weights & Biases."
+        "--use-wandb", action="store_true", help="Enable logging to Weights & Biases."
     )
     parser.add_argument(
         "--wandb-project",
@@ -1324,12 +1150,12 @@ if __name__ == "__main__":
     logger.info("=" * 50)
     logger.info("Starting Concept Distillation Pipeline")
     logger.info("=" * 50)
-    logger.info(f"Arguments: {vars(args)}")
+    print("Arguments:")
+    pprint(vars(args))
+    print("=" * 50)
 
     # Set seed for reproducibility
     set_seed(args.seed)
-    args.use_wandb = True
-    print(f"WANDB_AVAILABLE: {WANDB_AVAILABLE}")
 
     # Initialize wandb if requested
     if args.use_wandb:
@@ -1450,6 +1276,7 @@ if __name__ == "__main__":
             student_layer_name=args.student_layer,
             save_dir=args.save_dir,
             val_loader=val_loader,  # Pass the val loader
+            align_loss_scale=args.align_loss_scale,
             alpha=args.alpha,
             lambda_reg=args.lambda_reg,
             kl_temp=args.kl_temp,
