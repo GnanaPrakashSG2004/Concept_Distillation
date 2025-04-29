@@ -157,6 +157,45 @@ def load_model(
         }
 
 
+def load_timm_model(model_name, ckpt_path=None, cache_dir=None, device="cpu", is_eval=True):
+    """
+    Load a model from timm library
+    """
+    if ckpt_path:
+        model = timm.create_model(model_name, pretrained=False)
+        model.load_state_dict(
+            torch.load(
+                ckpt_path,
+                map_location="cpu",
+                weights_only=True
+            )["model_state_dict"],
+            strict=False)
+    else:
+        if cache_dir is None:
+            cache_dir = "/scratch/swayam/timm_cache/"
+        model = timm.create_model(model_name, pretrained=True, cache_dir=cache_dir)
+
+    if is_eval:
+        model = model.to(device).eval().requires_grad_(False)
+    else:
+        model = model.to(device).train()
+
+    config = resolve_model_data_config(model=model, verbose=True)
+    transform = create_transform(**config, is_training=True)
+    test_transform = create_transform(**config, is_training=False)
+    to_pil = transforms.ToPILImage()
+
+    return {
+        "model": model,
+        "config": config,
+        "to_pil": to_pil,
+        "model_type": "timm",
+        "transform": transform,
+        "model_name": model_name,
+        "test_transform": test_transform,
+    }
+
+
 if __name__ == "__main__":
     model_name = "resnet50.a3_in1k"
     print(model_name)

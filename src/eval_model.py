@@ -14,7 +14,7 @@ sys.path.append("../")
 from datasets.imagenet import imagenet, imagenet_modified
 from datasets.nabirds import NABirds
 from datasets.utils.dataset_loader import get_dataset
-from src.utils.model_loader import load_model
+from src.utils.model_loader import load_model, load_timm_model
 
 
 def load_or_run_evaluation(
@@ -142,6 +142,7 @@ def main(
     dataset_name,
     split="val",
     ckpt_path=None,
+    cache_dir=None,
     model_type=None,
     post_model_load=None,
     out_transform=None,
@@ -149,7 +150,8 @@ def main(
     data_root="../data",
     modifier_params=None,
 ):
-    model_dict = load_model(model_name, ckpt_path, model_type=model_type)
+    # model_dict = load_model(model_name, ckpt_path, model_type=model_type)
+    model_dict = load_timm_model(model_name, ckpt_path, cache_dir)
     test_transform = model_dict["test_transform"]
     model = model_dict["model"]
     if post_model_load is not None:

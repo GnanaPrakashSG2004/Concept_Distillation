@@ -1,41 +1,37 @@
-import matplotlib.pyplot as plt
-import torch
-import torch.nn as nn
-import torch.optim as optim
-import torch.nn.functional as F
-import numpy as np
 import os
-import tqdm
-import torch
-from math import ceil
-from src.utils.parser_helper import concept_comparison_parser
-from src.utils import saving, model_loader, concept_extraction_helper as ceh
-from src.utils.hooks import ActivationHook
 import json
-import os
-from tqdm import tqdm
-from extract_model_activations import create_image_group
-from src.utils.parser_helper import build_model_comparison_param_dicts
-from src.utils.model_loader import split_model
-from sklearn.linear_model import LinearRegression, Ridge, Lasso, ElasticNet
-from sklearn.neighbors import KNeighborsRegressor, RadiusNeighborsRegressor
-from sklearn.metrics import r2_score, mean_squared_error, explained_variance_score
-from scipy.stats import pearsonr, spearmanr
-from scipy.stats._warnings_errors import ConstantInputWarning, NearConstantInputWarning
-from sklearn.utils._testing import ignore_warnings
-import pickle as pkl
-import multiprocessing
 import time
 import random
+import pickle as pkl
+import multiprocessing
+from pprint import pprint
+
+import torch
+import numpy as np
+from tqdm import tqdm
 from celer import Lasso as CelerLasso
+
+from sklearn.metrics import r2_score
 from sklearn.model_selection import KFold
+from sklearn.utils._testing import ignore_warnings
+from sklearn.neighbors import KNeighborsRegressor, RadiusNeighborsRegressor
+from sklearn.linear_model import LinearRegression, Ridge, Lasso, ElasticNet
+
+from scipy.stats import pearsonr
+from scipy.stats._warnings_errors import ConstantInputWarning
+
+from src.utils.hooks import ActivationHook
+from src.utils.saving import build_output_dir
+from extract_model_activations import create_image_group
+from src.utils.parser_helper import concept_comparison_parser, build_model_comparison_param_dicts
+from src.utils import saving, model_loader, concept_extraction_helper as ceh
 from src.utils.funcs import (
+    load_concepts,
     _batch_inference,
     correlation_comparison,
-    load_concepts,
+    _faster_batch_inference,
     compute_concept_coefficients,
 )
-from src.utils.saving import build_output_dir
 
 
 def standardize(X, mean=None, std=None):
@@ -414,7 +410,7 @@ def k_fold_split_image_group(
     return repeated_image_list, train_image_indices, test_image_indices
 
 
-def shared_concept_proposals_inference(params):
+def shared_concept_proposals_inference(params, pbar=None):
     image_group = params["image_group"]
     patchify = params["patchify"]
     num_images = params["num_images"]
@@ -485,12 +481,14 @@ def shared_concept_proposals_inference(params):
             out["images_preprocessed"], patch_size, strides=None
         )
         images_preprocessed = patches
-        out = _batch_inference(
+        out = _faster_batch_inference(
             models[mi],
             images_preprocessed,
-            batch_size=256,
+            batch_size=params["batch_size"],
+            num_workers=params["num_workers"],
             resize=image_size,
             device=device,
+            pbar=pbar,
         )
         act_hooks[mi].concatenate_layer_activations()
 
@@ -524,6 +522,9 @@ def main():
     parser = build_model_comparison_parser()
     parser.add_argument("--multiprocessing", type=int, default=0)
     args = parser.parse_args()
+    print("Arguments:")
+    pprint(vars(args))
+    print()
 
     with open(args.comparison_config, "r") as f:
         config = json.load(f)
@@ -561,6 +562,9 @@ def main():
     # print(method_output_folders)
 
     out = build_model_comparison_param_dicts(args)
+    print("=" * 50)
+    print()
+
     param_dicts1 = out["param_dicts1"]
     param_dicts2 = out["param_dicts2"]
     concepts_folders = out["concepts_folders"]
@@ -577,8 +581,9 @@ def main():
     models = []
     for mi, param_dicts in enumerate([param_dicts1, param_dicts2]):
         model_name, ckpt_path = param_dicts["model"]
-        model_out = model_loader.load_model(
-            model_name, ckpt_path, device=param_dicts["device"], eval=True
+        model_out = model_loader.load_timm_model(
+            model_name, ckpt_path, args.cache_dir,
+            device=param_dicts["device"], is_eval=True
         )
         model = model_out["model"]
 
@@ -615,13 +620,12 @@ def main():
     image_group = create_image_group(
         strategy=igs, param_dicts=[param_dicts1, param_dicts2]
     )
+    print()
 
     class_list = param_dicts1["class_list"]
     pbar = tqdm(class_list)
-    ci = 0
     for class_idx in pbar:
-        ci += 1
-        pbar.set_description(f"Class {class_idx}")
+        pbar.set_description_str(f"Class {class_idx}")
 
         for m_folder in method_output_folders:
             if os.path.exists(m_folder) and args.folder_exists == "raise":
@@ -648,15 +652,14 @@ def main():
             models=models,
             comparison_methods=comparison_methods,
             patch_size=patch_size,
+            batch_size=args.batch_size,
+            num_workers=args.num_workers,
         )
         shared_concept_proposals_inference(params)
 
-        # print('Computing concept coefficients')
-        st = time.time()
         U1_layers = []
-        for li, m0_layer in enumerate(
-            m0_layers
-        ):  # reverse order to start from the last layer
+        for li, m0_layer in enumerate(m0_layers):  # reverse order to start from the last layer
+            pbar.set_postfix_str(f"m0 layer {m0_layer} ({li}/{len(m0_layers)})")
             U1 = _process_coeff_for_layer(
                 concepts_folders[0],
                 m0_layer,
@@ -664,37 +667,37 @@ def main():
                 act_hooks[0].layer_activations[m0_layer],
             )
 
+            if np.isnan(U1).any():
+                raise ValueError(
+                    f"NaN values in U1 for class {class_idx}, layer {m0_layer}"
+                )
+
             U1_layers.append(U1)
-        # print(time.time() - st)
-        st = time.time()
+
         U2_layers = []
-        for lj, m1_layer in enumerate(
-            m1_layers
-        ):  # reverse order to start from the last layer
+        for lj, m1_layer in enumerate(m1_layers):  # reverse order to start from the last layer
+            pbar.set_postfix_str(f"m1 layer {m1_layer} ({lj}/{len(m1_layers)})")
             U2 = _process_coeff_for_layer(
                 concepts_folders[1],
                 m1_layer,
                 class_idx,
                 act_hooks[1].layer_activations[m1_layer],
             )
+
+            if np.isnan(U2).any():
+                raise ValueError(
+                    f"NaN values in U2 for class {class_idx}, layer {m1_layer}"
+                )
+
             U2_layers.append(U2)
-        # print(time.time() - st)
-        # print(f"M0 layers: {m0_layers}")
-        # print('\n\n\n\n')
-        # print(f"M1 layers: {m1_layers}")
-        # print(f"Length of M0 layers: {len(m0_layers)}")
-        # print(f"Length of M1 layers: {len(m1_layers)}")
 
         if args.multiprocessing:
             comparison_args = []
             file_paths = []
-            for li, m0_layer in enumerate(
-                m0_layers
-            ):  # reverse order to start from the last layer
+            for li, m0_layer in enumerate(m0_layers):  # reverse order to start from the last layer
                 activations1 = act_hooks[0].layer_activations[m0_layer]
-                for lj, m1_layer in enumerate(
-                    m1_layers
-                ):  # reverse order to start from the last layer
+
+                for lj, m1_layer in enumerate(m1_layers):  # reverse order to start from the last layer
                     activations2 = act_hooks[1].layer_activations[m1_layer]
                     comparison_args.append(
                         (
@@ -705,17 +708,11 @@ def main():
                             U2_layers[lj],
                         )
                     )
-                    file_paths.append(
-                        os.path.join(f"{class_idx}", f"{m0_layer}-{m1_layer}.pkl")
-                    )
+                    file_paths.append(os.path.join(f"{class_idx}", f"{m0_layer}-{m1_layer}.pkl"))
 
             st = time.time()
-            with multiprocessing.get_context("spawn").Pool(
-                processes=args.multiprocessing
-            ) as pool:
-                comparison_outputs_list = pool.starmap(
-                    compare_model_concepts, comparison_args
-                )
+            with multiprocessing.get_context("spawn").Pool(processes=args.multiprocessing) as pool:
+                comparison_outputs_list = pool.starmap(compare_model_concepts, comparison_args)
             print(time.time() - st, "multiprocessing layerwise comparison")
 
             # save outputs
@@ -724,15 +721,18 @@ def main():
                     fp = os.path.join(output_folder, file_paths[i])
                     with open(fp, "wb") as f:
                         pkl.dump(out, f)
+
         else:
-            for li, m0_layer in enumerate(
-                m0_layers
-            ):  # reverse order to start from the last layer
+            for li, m0_layer in enumerate(m0_layers):  # reverse order to start from the last layer
                 activations1 = act_hooks[0].layer_activations[m0_layer]
-                for lj, m1_layer in enumerate(
-                    m1_layers
-                ):  # reverse order to start from the last layer
+
+                for lj, m1_layer in enumerate(m1_layers):  # reverse order to start from the last layer
                     activations2 = act_hooks[1].layer_activations[m1_layer]
+
+                    pbar.set_postfix_str(
+                        f"m0 layer {m0_layer} ({li+1}/{len(m0_layers)}) -- m1 layer {m1_layer} ({lj+1}/{len(m1_layers)})"
+                    )
+
                     comparison_outputs = compare_model_concepts(
                         comparison_methods,
                         activations1,
@@ -741,18 +741,40 @@ def main():
                         U2_layers[lj],
                     )
 
+                    # check for NaN values
+                    for dict_key, dict_val in comparison_outputs.items():
+                        if isinstance(dict_val, dict):
+                            for key, val in dict_val.items():
+                                if isinstance(val, dict):
+                                    for v in val.values():
+                                        if isinstance(v, np.ndarray):
+                                            if np.isnan(v).any():
+                                                raise ValueError(
+                                                    f"NaN values in {key} for class {class_idx}, layer {m0_layer}, {m1_layer}"
+                                                )
+
+                                elif isinstance(val, np.ndarray):
+                                    if np.isnan(val).any():
+                                        raise ValueError(
+                                            f"NaN values in {key} for class {class_idx}, layer {m0_layer}, {m1_layer}"
+                                        )
+
+                        elif isinstance(dict_val, np.ndarray):
+                            if np.isnan(dict_val).any():
+                                raise ValueError(
+                                    f"NaN values in {dict_key} for class {class_idx}, layer {m0_layer}, {m1_layer}"
+                                )
+
                     for output_folder, out in comparison_outputs.items():
-                        with open(
-                            os.path.join(
-                                output_folder,
-                                f"{class_idx}",
-                                f"{m0_layer}-{m1_layer}.pkl",
-                            ),
-                            "wb",
-                        ) as f:
+                        output_file_path = os.path.join(
+                            output_folder,
+                            f"{class_idx}",
+                            f"{m0_layer}-{m1_layer}.pkl",
+                        )
+                        with open(output_file_path, "wb") as f:
                             pkl.dump(out, f)
 
-            print("Done comparing model concepts for class ", class_idx)
+            print(f"Done comparing model concepts for class {class_idx}\n")
 
         for mi in range(len(fe_outs)):
             act_hooks[mi].reset_activation_dict()

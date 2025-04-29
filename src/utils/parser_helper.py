@@ -46,6 +46,14 @@ def concept_extraction_parser():
     parser.add_argument("--move_to_cpu_every", type=int, default=None)
     parser.add_argument("--move_to_cpu_in_hook", action="store_true")
     parser.add_argument("--batch_size", type=int, default=256)
+    parser.add_argument("--num_workers", type=int, default=8)
+    parser.add_argument("--cache_dir", type=str, default="/scratch/swayam/timm_cache/")
+    parser.add_argument(
+        "--overwrite_concepts",
+        action="store_true",
+        help="Overwrite concepts if they already exist",
+    )
+
 
     return parser
 
@@ -191,6 +199,9 @@ def concept_comparison_parser():
     parser.add_argument("--class_list_path", type=str, default=None)
     parser.add_argument("--start_class_idx", type=int, default=0)
     parser.add_argument("--end_class_idx", type=int, default=1000)
+    parser.add_argument("--batch_size", type=int, default=128)
+    parser.add_argument("--num_workers", type=int, default=8)
+    parser.add_argument("--cache_dir", type=str, default="/scratch/swayam/timm_cache/")
 
     return parser
 

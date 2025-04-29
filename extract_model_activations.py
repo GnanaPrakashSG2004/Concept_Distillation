@@ -1,14 +1,16 @@
-import torch
-from math import ceil
-from src.utils.parser_helper import concept_extraction_parser, build_param_dicts
-from src.utils import saving, model_loader, concept_extraction_helper as ceh
-from src.utils.hooks import ActivationHook
-from src import eval_model
-import json
 import os
-from tqdm import tqdm
-from src.utils.funcs import _batch_inference
+import json
+from pprint import pprint
+
+import torch
 import numpy as np
+from tqdm import tqdm
+
+from src import eval_model
+from src.utils.hooks import ActivationHook
+from src.utils import model_loader, concept_extraction_helper as ceh
+from src.utils.funcs import _batch_inference, _faster_batch_inference
+from src.utils.parser_helper import concept_extraction_parser, build_param_dicts
 
 
 def join_image_groups(strategy, image_group1, image_group2):
@@ -200,7 +202,13 @@ def transform_images(
 if __name__ == "__main__":
     parser = concept_extraction_parser()
     args = parser.parse_args()
+    print("Arguments:")
+    pprint(vars(args))
+    print()
+
     param_dicts, save_names = build_param_dicts(args)
+    print("=" * 50)
+    print()
     force_run = True
 
     activations_dir = save_names["activations_dir"]
@@ -217,8 +225,9 @@ if __name__ == "__main__":
 
     # Load model
     model_name, ckpt_path = param_dicts["model"]
-    model_out = model_loader.load_model(
-        model_name, ckpt_path, device=param_dicts["device"], eval=True
+    model_out = model_loader.load_timm_model(
+        model_name, ckpt_path, args.cache_dir,
+        device=param_dicts["device"], is_eval=True
     )
     model = model_out["model"]
 
@@ -250,6 +259,7 @@ if __name__ == "__main__":
         if class_idx not in image_group.keys():
             print(f"Class {class_idx} not found in image group")
             continue
+
         transform_out = transform_images(
             image_group[class_idx],
             dataset_name,
@@ -261,12 +271,14 @@ if __name__ == "__main__":
         image_size = transform_out["image_size"]
 
         # Extract model activations
-        preds = _batch_inference(
+        preds = _faster_batch_inference(
             model,
             images,
             batch_size=args.batch_size,
+            num_workers=args.num_workers,
             resize=image_size,
             device=param_dicts["device"],
+            pbar=pbar,
         )
         act_hook.concatenate_layer_activations()
 

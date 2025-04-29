@@ -30,6 +30,7 @@ import os
 import sys
 import glob
 import pickle
+import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 from collections import defaultdict
@@ -71,6 +72,10 @@ def load_correlation_matrix(pkl_path):
     for (i, j), result in data["1to2"].items():
         if i < k and j < k:
             R[i, j] = result.statistic
+            if np.isnan(R[i, j]):
+                raise ValueError(
+                    f"NaN value found in correlation matrix for indices ({i}, {j}) in file {pkl_path}"
+                )
         else:
             raise IndexError(f"Invalid indices ({i}, {j}) in file {pkl_path}")
     return R, k
@@ -90,10 +95,11 @@ def compute_mcs_from_matrix(R):
     return mcs1, mcs2
 
 
-def aggregate_mmcs(base_folder):
+def aggregate_mmcs(base_folder, class_list):
     """
-    Walk through each class folder under base_folder, load all pickle files,
-    compute per-file mcs1 and mcs2, and aggregate by layer pair across classes.
+    Walk through each class folder under base_folder based on the class_list,
+    load all pickle files, compute per-file mcs1 and mcs2,
+    and aggregate by layer pair across classes.
 
     Returns:
       - mmcs_dict: dictionary mapping (layer1, layer2) -> final MMCS value (float)
@@ -107,15 +113,17 @@ def aggregate_mmcs(base_folder):
 
     global_k = None
 
-    class_folders = [
-        d
-        for d in os.listdir(base_folder)
-        if os.path.isdir(os.path.join(base_folder, d))
-    ]
+    class_folders = []
+    for cls_idx in class_list:
+        cls_folder = os.path.join(base_folder, str(cls_idx))
+        if os.path.isdir(cls_folder):
+            class_folders.append(cls_folder)
+        else:
+            print(f"Warning: Class folder {cls_folder} does not exist. Skipping.")
     class_folders.sort(key=lambda x: int(x) if x.isdigit() else x)
 
-    for cls in class_folders:
-        cls_path = os.path.join(base_folder, cls)
+    for cls_idx in class_folders:
+        cls_path = os.path.join(base_folder, cls_idx)
         # Get all pickle files in this class folder
         pkl_files = glob.glob(os.path.join(cls_path, "*.pkl"))
         for pkl_file in pkl_files:
@@ -173,11 +181,11 @@ def build_mmcs_matrix(mmcs_dict, model1_layers, model2_layers):
         except ValueError:
             # Should not happen if our layer lists are correct.
             raise ValueError(f"Layer not found in model1 or model2: {l1} or {l2}")
-            continue
+
     return M
 
 
-def plot_mmcs_heatmap(M, model1_layers, model2_layers, title="Layerwise MMCS Heatmap"):
+def plot_mmcs_heatmap(M, model1_layers, model2_layers, plot_file_path, title="Layerwise MMCS Heatmap"):
     """
     Plot the 2D MMCS heatmap with model1 layers on the y-axis and model2 layers on the x-axis.
     """
@@ -190,11 +198,11 @@ def plot_mmcs_heatmap(M, model1_layers, model2_layers, title="Layerwise MMCS Hea
     plt.ylabel("ResNet-18 Layers (Model 1)")
     plt.title(title)
     plt.tight_layout()
-    plt.show()
-    plt.savefig("mmcs_heatmap.png")
+    # plt.show()
+    plt.savefig(plot_file_path, dpi=300)
 
 
-def main(base_folder):
+def main(base_folder, class_list, plot_file_path):
     """
     Main driver:
       - Aggregates MMCS values across all class subfolders.
@@ -202,23 +210,61 @@ def main(base_folder):
       - Builds a 2D matrix and plots the heatmap.
     """
     print("Aggregating MMCS values from pickle files...")
-    mmcs_dict, model1_layers, model2_layers, k = aggregate_mmcs(base_folder)
+    mmcs_dict, model1_layers, model2_layers, k = aggregate_mmcs(base_folder, class_list)
     print(f"Consistent number of concepts (k): {k}")
     print(
         f"Found {len(model1_layers)} unique model1 layers and {len(model2_layers)} unique model2 layers."
     )
 
     M = build_mmcs_matrix(mmcs_dict, model1_layers, model2_layers)
-    plot_mmcs_heatmap(M, model1_layers, model2_layers)
+    plot_mmcs_heatmap(M, model1_layers, model2_layers, plot_file_path)
+
+
+def parse_args():
+    """
+    Parse command line arguments.
+    """
+    parser = argparse.ArgumentParser(
+        description="Generate a heatmap of Layerwise Mean-Max Concept Similarity (MMCS) from pickle files."
+    )
+    parser.add_argument(
+        "base_folder",
+        type=str,
+        help="Base folder containing class subfolders with .pkl files.",
+    )
+    parser.add_argument(
+        "--start_class_idx",
+        type=int,
+        default=0,
+        help="Starting index for class folders (default: 0).",
+    )
+    parser.add_argument(
+        "--end_class_idx",
+        type=int,
+        default=1000,
+        help="Ending index for class folders (default: 1000).",
+    )
+    parser.add_argument(
+        "--plot_file_path",
+        type=str,
+        default="mmcs_heatmap.png",
+        help="Output file path for saving the heatmap (default: mmcs_heatmap.png).",
+    )
+
+    return parser.parse_args()
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 2:
-        print("Usage: python generate_heatmap.py <base_folder>")
-        print("Example:")
-        print(
-            "  python generate_heatmap.py /scratch/swayam/rsvc-exps/outputs/data/concept_comparison/r18_flv=v1_vs_r50_flv=v1-nmf=10_seed=0/ni=200_nir=1_tt=te_seed=42_trpct=None_nf=5_ptc=t_ps=64/pearson/"
-        )
+    args = parse_args()
+    base_folder = args.base_folder
+    start_class_idx = args.start_class_idx
+    end_class_idx = args.end_class_idx
+
+    # Ensure the base folder exists
+    if not os.path.exists(base_folder):
+        print(f"Base folder '{base_folder}' does not exist.")
         sys.exit(1)
-    base_folder = sys.argv[1]
-    main(base_folder)
+
+    class_list = range(start_class_idx, end_class_idx)
+
+    main(base_folder, class_list, args.plot_file_path)

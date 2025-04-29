@@ -1,5 +1,5 @@
 {
-  "comparison_name": "r18_flv=v1_vs_r50_flv=v1-nmf=10_seed=0",
+  "comparison_name": "r18_flv=v1_vs_r50_flv=v1-nmf=10_seed=0_method=lasso_regression_c",
   "dataset": "imagenet",
   "num_images": 200,
   "num_image_repeats": 1,
@@ -11,7 +11,6 @@
   "patch_size": 64,
 
   "methods": [
-    {"method": "pearson"},
     {
       "method": "lasso_regression_c",
       "standardize": true, "standardize_targets": true,
